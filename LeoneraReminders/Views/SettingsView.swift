@@ -20,6 +20,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 alarmSection
+                followUpSection
                 snoozeSection
                 gridSection
                 permissionSection
@@ -66,6 +67,37 @@ struct SettingsView: View {
         } footer: {
             Text("Desde iOS 26.1 el botón Detener lo dibuja el sistema; aquí eliges qué hace. «Más opciones» pospone \(defaultSnoozeLabel) y abre la app para elegir otro tiempo o completar.")
         }
+    }
+
+    private var followUpSection: some View {
+        Section {
+            Toggle("Volver a sonar si no la atiendo", isOn: settings.followUp.isEnabled)
+            if settingsStore.settings.followUp.isEnabled {
+                Picker("Cada", selection: settings.followUp.interval) {
+                    ForEach(FollowUpSettings.intervalOptions) { option in
+                        Text(option.longLabel).tag(option)
+                    }
+                }
+                Picker("Hasta", selection: settings.followUp.count) {
+                    ForEach(FollowUpSettings.countOptions, id: \.self) { count in
+                        Text("\(count) veces").tag(count)
+                    }
+                }
+            }
+        } header: {
+            Text("Si ignoras la alarma")
+        } footer: {
+            Text(followUpFooter)
+        }
+    }
+
+    private var followUpFooter: String {
+        let followUp = settingsStore.settings.followUp
+        guard followUp.isEnabled else {
+            return "Si no tocas ningún botón, el recordatorio queda en «Vencidos» sin volver a sonar."
+        }
+        let total = TimeAmount(followUp.interval.value * followUp.count, followUp.interval.unit)
+        return "Cada recordatorio deja programadas alarmas extra cada \(followUp.interval.longLabel) durante \(total.longLabel). Al completar o posponer se cancelan. Así suena aunque no abras la app."
     }
 
     private var snoozeSection: some View {

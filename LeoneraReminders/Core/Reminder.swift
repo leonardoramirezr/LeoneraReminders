@@ -13,8 +13,8 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
     var completedAt: Date?
     var lastCompletedAt: Date?
     var createdAt: Date
-    /// Alarma de AlarmKit programada actualmente para este recordatorio.
-    var scheduledAlarm: ScheduledAlarm?
+    /// Alarmas de AlarmKit programadas ahora: la principal y las que repiten el aviso si no se atiende.
+    var scheduledAlarms: [ScheduledAlarm]
 
     init(
         id: UUID = UUID(),
@@ -25,7 +25,7 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
         completedAt: Date? = nil,
         lastCompletedAt: Date? = nil,
         createdAt: Date = Date(),
-        scheduledAlarm: ScheduledAlarm? = nil
+        scheduledAlarms: [ScheduledAlarm] = []
     ) {
         self.id = id
         self.title = title
@@ -35,7 +35,7 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
         self.completedAt = completedAt
         self.lastCompletedAt = lastCompletedAt
         self.createdAt = createdAt
-        self.scheduledAlarm = scheduledAlarm
+        self.scheduledAlarms = scheduledAlarms
     }
 
     var isCompleted: Bool { completedAt != nil }
@@ -76,6 +76,20 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
         completedAt = nil
     }
 
+    /// Momentos futuros (posteriores a `now`) en que deben sonar sus alarmas: la hora del aviso y, si se ignora,
+    /// cada `followUp.interval` después, hasta `followUp.count` veces. Si ya pasó la hora, sólo quedan las repeticiones.
+    func pendingAlarmDates(after now: Date, followUp: FollowUpSettings, calendar: Calendar = .current) -> [Date] {
+        guard !isCompleted else { return [] }
+        var dates = [alertDate]
+        if followUp.isEnabled, followUp.count > 0 {
+            for k in 1...followUp.count {
+                let step = TimeAmount(followUp.interval.value * k, followUp.interval.unit)
+                dates.append(step.added(to: alertDate, calendar: calendar))
+            }
+        }
+        return dates.filter { $0 > now }
+    }
+
     /// Para recordatorios repetitivos cuya fecha ya pasó: mueve la fecha a la siguiente ocurrencia futura.
     /// Devuelve `true` si cambió algo.
     @discardableResult
@@ -99,7 +113,9 @@ struct ScheduledAlarm: Codable, Hashable, Sendable {
 
 extension Reminder {
     private enum CodingKeys: String, CodingKey {
-        case id, title, dueDate, repeatRule, snoozedUntil, completedAt, lastCompletedAt, createdAt, scheduledAlarm
+        case id, title, dueDate, repeatRule, snoozedUntil, completedAt, lastCompletedAt, createdAt, scheduledAlarms
+        /// Versiones anteriores guardaban una sola alarma.
+        case scheduledAlarm
     }
 
     init(from decoder: any Decoder) throws {
@@ -113,7 +129,23 @@ extension Reminder {
             completedAt: try c.decodeIfPresent(Date.self, forKey: .completedAt),
             lastCompletedAt: try c.decodeIfPresent(Date.self, forKey: .lastCompletedAt),
             createdAt: try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date(),
-            scheduledAlarm: try c.decodeIfPresent(ScheduledAlarm.self, forKey: .scheduledAlarm)
+            scheduledAlarms: try c.decodeIfPresent([ScheduledAlarm].self, forKey: .scheduledAlarms)
+                ?? (try c.decodeIfPresent(ScheduledAlarm.self, forKey: .scheduledAlarm)).map { [$0] } ?? []
         )
+    }
+}
+
+extension Reminder {
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(dueDate, forKey: .dueDate)
+        try c.encodeIfPresent(repeatRule, forKey: .repeatRule)
+        try c.encodeIfPresent(snoozedUntil, forKey: .snoozedUntil)
+        try c.encodeIfPresent(completedAt, forKey: .completedAt)
+        try c.encodeIfPresent(lastCompletedAt, forKey: .lastCompletedAt)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(scheduledAlarms, forKey: .scheduledAlarms)
     }
 }

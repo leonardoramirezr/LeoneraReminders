@@ -121,7 +121,7 @@ struct ReminderListView: View {
         ReminderRow(
             reminder: reminder,
             now: now,
-            isRinging: reminder.scheduledAlarm.map { alarms.alertingAlarmIDs.contains($0.id) } ?? false,
+            isRinging: reminder.scheduledAlarms.contains { alarms.alertingAlarmIDs.contains($0.id) },
             onToggle: { toggleCompletion(reminder) }
         )
         .contentShape(Rectangle())
@@ -348,6 +348,11 @@ struct ReminderRow: View {
                     Label(DateText.relative(reminder.dueDate, now: now), systemImage: alarmSymbol)
                         .font(.subheadline)
                         .foregroundStyle(isOverdue ? Color.red : Color.secondary)
+                    if isOverdue, let next = reminder.scheduledAlarms.first(where: { $0.fireDate > now }) {
+                        Label("Vuelve a sonar \(DateText.time(next.fireDate))", systemImage: "arrow.clockwise")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.brand)
+                    }
                     if let snoozed = reminder.snoozedUntil {
                         Label("Pospuesto hasta \(DateText.relative(snoozed, now: now))", systemImage: "zzz")
                             .font(.subheadline)
@@ -373,6 +378,6 @@ struct ReminderRow: View {
 
     private var alarmSymbol: String {
         if reminder.isCompleted { return "checkmark" }
-        return reminder.scheduledAlarm == nil ? "bell.slash" : "alarm"
+        return reminder.scheduledAlarms.isEmpty ? "bell.slash" : "alarm"
     }
 }

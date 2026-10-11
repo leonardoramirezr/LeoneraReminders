@@ -105,22 +105,26 @@ final class AlarmSyncService {
         let now = Date()
 
         var keep = Set<UUID>()
-        var pending: [Reminder] = []
+        var kept: [UUID: [ScheduledAlarm]] = [:]
+        var missing: [(reminder: Reminder, date: Date, isMain: Bool)] = []
         for reminder in store.reminders where !reminder.isCompleted {
-            if let current = reminder.scheduledAlarm, let alarm = existingByID[current.id] {
-                let upToDate = current.fireDate == reminder.alertDate
-                    && current.signature == signature(for: reminder, settings: settings)
+            let signature = signature(for: reminder, settings: settings)
+            let wanted = reminder.pendingAlarmDates(after: now.addingTimeInterval(1), followUp: settings.followUp)
+            var current: [ScheduledAlarm] = []
+            for record in reminder.scheduledAlarms {
+                guard let alarm = existingByID[record.id] else { continue }
+                let stillWanted = wanted.contains(record.fireDate) && record.signature == signature
                 // Si está sonando y el recordatorio no ha cambiado de hora, se deja sonar.
                 let ringing = alarm.state == .alerting && reminder.alertDate <= now
-                if upToDate || ringing {
-                    keep.insert(current.id)
-                    continue
+                if stillWanted || ringing {
+                    keep.insert(record.id)
+                    current.append(record)
                 }
             }
-            if reminder.alertDate > now.addingTimeInterval(1) {
-                pending.append(reminder)
-            } else if reminder.scheduledAlarm != nil {
-                store.setScheduledAlarm(nil, for: reminder.id)
+            kept[reminder.id] = current
+            let scheduledDates = Set(current.map(\.fireDate))
+            for date in wanted where !scheduledDates.contains(date) {
+                missing.append((reminder, date, date == reminder.alertDate))
             }
         }
 
@@ -129,27 +133,28 @@ final class AlarmSyncService {
             try? manager.cancel(id: alarm.id)
         }
 
+        // Si AlarmKit llega a su límite, quedan programadas primero las alarmas principales y luego
+        // las repeticiones, en orden de fecha.
+        missing.sort { ($0.isMain ? 0 : 1, $0.date) < ($1.isMain ? 0 : 1, $1.date) }
         var reachedLimit = false
         lastError = nil
-        for reminder in pending.sorted(by: { $0.alertDate < $1.alertDate }) {
-            guard !reachedLimit else {
-                store.setScheduledAlarm(nil, for: reminder.id)
-                continue
-            }
+        for item in missing where !reachedLimit {
             let alarmID = UUID()
             do {
-                let configuration = Self.configuration(for: reminder, alarmID: alarmID, settings: settings)
+                let configuration = Self.configuration(for: item.reminder, at: item.date, alarmID: alarmID, settings: settings)
                 _ = try await manager.schedule(id: alarmID, configuration: configuration)
-                let record = ScheduledAlarm(id: alarmID, fireDate: reminder.alertDate, signature: signature(for: reminder, settings: settings))
-                store.setScheduledAlarm(record, for: reminder.id)
+                let record = ScheduledAlarm(id: alarmID, fireDate: item.date, signature: signature(for: item.reminder, settings: settings))
+                kept[item.reminder.id, default: []].append(record)
             } catch AlarmManager.AlarmError.maximumLimitReached {
                 reachedLimit = true
-                store.setScheduledAlarm(nil, for: reminder.id)
             } catch {
                 lastError = error.localizedDescription
-                logger.error("No se pudo programar «\(reminder.title, privacy: .private)»: \(error.localizedDescription, privacy: .public)")
-                store.setScheduledAlarm(nil, for: reminder.id)
+                logger.error("No se pudo programar «\(item.reminder.title, privacy: .private)»: \(error.localizedDescription, privacy: .public)")
             }
+        }
+        for reminder in store.reminders {
+            let records = (kept[reminder.id] ?? []).sorted { $0.fireDate < $1.fireDate }
+            store.setScheduledAlarms(records, for: reminder.id)
         }
         limitReached = reachedLimit
     }
@@ -162,6 +167,7 @@ final class AlarmSyncService {
 
     nonisolated private static func configuration(
         for reminder: Reminder,
+        at date: Date,
         alarmID: UUID,
         settings: AppSettings
     ) -> AlarmManager.AlarmConfiguration<ReminderAlarmMetadata> {
@@ -194,7 +200,7 @@ final class AlarmSyncService {
         )
 
         return AlarmManager.AlarmConfiguration<ReminderAlarmMetadata>.alarm(
-            schedule: .fixed(reminder.alertDate),
+            schedule: .fixed(date),
             attributes: attributes,
             stopIntent: intent(for: settings.stopAction, reminderID: reminder.id, alarmID: alarmID),
             secondaryIntent: secondaryButton == nil

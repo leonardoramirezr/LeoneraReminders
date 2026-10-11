@@ -98,7 +98,7 @@ enum AlarmActionHandler {
             return
         }
         // Una alarma vieja (el recordatorio ya se atendió desde la app) no debe cambiarlo otra vez.
-        if let alarm, reminder.scheduledAlarm?.id != alarm, reminder.alertDate > Date() {
+        if let alarm, !reminder.scheduledAlarms.contains(where: { $0.id == alarm }), reminder.alertDate > Date() {
             return
         }
 

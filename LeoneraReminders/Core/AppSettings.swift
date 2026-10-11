@@ -89,6 +89,17 @@ extension QuickAdjustGrid.Cell {
     }
 }
 
+/// Repetir la alarma si no se atiende: vuelve a sonar cada `interval`, hasta `count` veces.
+struct FollowUpSettings: Codable, Hashable, Sendable {
+    var isEnabled: Bool
+    var interval: TimeAmount
+    var count: Int
+
+    static let `default` = FollowUpSettings(isEnabled: true, interval: .minutes(1), count: 10)
+    static let intervalOptions: [TimeAmount] = [.minutes(1), .minutes(2), .minutes(5), .minutes(10), .minutes(15), .minutes(30), .hours(1)]
+    static let countOptions = [3, 5, 10, 15, 20, 30]
+}
+
 /// Configuración de la app.
 struct AppSettings: Codable, Hashable, Sendable {
     /// Opciones de "Recordar en…" que se ofrecen al posponer.
@@ -100,6 +111,8 @@ struct AppSettings: Codable, Hashable, Sendable {
     /// Acción del segundo botón de la alarma.
     var secondaryAction: AlarmAction
     var quickAdjustGrid: QuickAdjustGrid
+    /// Volver a sonar si la alarma se ignora.
+    var followUp: FollowUpSettings = .default
 
     static let defaultSnoozeOptions: [TimeAmount] = [
         .minutes(1), .minutes(5), .minutes(10), .minutes(20), .minutes(40), .minutes(60), .hours(2), .hours(3),
@@ -110,7 +123,8 @@ struct AppSettings: Codable, Hashable, Sendable {
         defaultSnooze: .minutes(10),
         stopAction: .complete,
         secondaryAction: .snooze,
-        quickAdjustGrid: .default
+        quickAdjustGrid: .default,
+        followUp: .default
     )
 
     /// Opciones ordenadas y sin repetir.
@@ -127,7 +141,7 @@ struct AppSettings: Codable, Hashable, Sendable {
 
 extension AppSettings {
     private enum CodingKeys: String, CodingKey {
-        case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid
+        case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid, followUp
     }
 
     init(from decoder: any Decoder) throws {
@@ -138,7 +152,8 @@ extension AppSettings {
             defaultSnooze: (try? c.decodeIfPresent(TimeAmount.self, forKey: .defaultSnooze)) ?? fallback.defaultSnooze,
             stopAction: (try? c.decodeIfPresent(AlarmAction.self, forKey: .stopAction)) ?? fallback.stopAction,
             secondaryAction: (try? c.decodeIfPresent(AlarmAction.self, forKey: .secondaryAction)) ?? fallback.secondaryAction,
-            quickAdjustGrid: (try? c.decodeIfPresent(QuickAdjustGrid.self, forKey: .quickAdjustGrid)) ?? fallback.quickAdjustGrid
+            quickAdjustGrid: (try? c.decodeIfPresent(QuickAdjustGrid.self, forKey: .quickAdjustGrid)) ?? fallback.quickAdjustGrid,
+            followUp: (try? c.decodeIfPresent(FollowUpSettings.self, forKey: .followUp)) ?? fallback.followUp
         )
     }
 }

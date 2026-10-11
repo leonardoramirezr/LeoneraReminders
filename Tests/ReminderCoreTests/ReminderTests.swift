@@ -86,7 +86,36 @@ struct ReminderTests {
         let reminder = try JSONDecoder().decode(Reminder.self, from: Data(json.utf8))
         #expect(reminder.title == "Hola")
         #expect(reminder.repeatRule == nil)
-        #expect(reminder.scheduledAlarm == nil)
+        #expect(reminder.scheduledAlarms.isEmpty)
+    }
+
+    @Test func decodesLegacySingleAlarmAndRoundTrips() throws {
+        let json = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","title":"Hola","dueDate":0,"scheduledAlarm":{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FE","fireDate":0,"signature":"x"}}"#
+        let reminder = try JSONDecoder().decode(Reminder.self, from: Data(json.utf8))
+        #expect(reminder.scheduledAlarms.map(\.signature) == ["x"])
+        let again = try JSONDecoder().decode(Reminder.self, from: JSONEncoder().encode(reminder))
+        #expect(again == reminder)
+    }
+
+    @Test func pendingAlarmDatesIncludeFollowUps() {
+        let reminder = Reminder(title: "Pastilla", dueDate: local(2026, 10, 16, 21))
+        let followUp = FollowUpSettings(isEnabled: true, interval: .minutes(1), count: 3)
+        #expect(reminder.pendingAlarmDates(after: local(2026, 10, 16, 20), followUp: followUp, calendar: mexico)
+            == [local(2026, 10, 16, 21), local(2026, 10, 16, 21, 1), local(2026, 10, 16, 21, 2), local(2026, 10, 16, 21, 3)])
+        // Ya sonó la principal y se ignoró: sólo quedan las repeticiones futuras.
+        #expect(reminder.pendingAlarmDates(after: local(2026, 10, 16, 21, 1), followUp: followUp, calendar: mexico)
+            == [local(2026, 10, 16, 21, 2), local(2026, 10, 16, 21, 3)])
+        // Pospuesto: las repeticiones cuentan desde la nueva hora.
+        var snoozed = reminder
+        snoozed.snooze(by: .minutes(10), now: local(2026, 10, 16, 21, 1), calendar: mexico)
+        #expect(snoozed.pendingAlarmDates(after: local(2026, 10, 16, 21, 1), followUp: followUp, calendar: mexico).first
+            == local(2026, 10, 16, 21, 11))
+        var off = followUp
+        off.isEnabled = false
+        #expect(reminder.pendingAlarmDates(after: local(2026, 10, 16, 20), followUp: off, calendar: mexico) == [local(2026, 10, 16, 21)])
+        var done = reminder
+        done.complete(now: local(2026, 10, 16, 20), calendar: mexico)
+        #expect(done.pendingAlarmDates(after: local(2026, 10, 16, 20), followUp: followUp, calendar: mexico).isEmpty)
     }
 }
 

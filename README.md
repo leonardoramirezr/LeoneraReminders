@@ -20,6 +20,9 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
   - El segundo botón puede ser también **Más opciones**: pospone el tiempo por defecto y abre la app con todas las
     opciones de "Recordar en…" (1, 5, 10, 20, 40 y 60 min, 2 h y 3 h por defecto; se pueden quitar y agregar).
   - Desde iOS 26.1 el control Detener lo dibuja el sistema (no se puede cambiar su texto); la app sólo decide qué hace.
+- **Si ignoras la alarma, vuelve a sonar**: cada recordatorio deja programadas alarmas extra cada minuto (hasta 10 veces,
+  configurable en *Configuración → Si ignoras la alarma*). Como están programadas de antemano, suenan aunque la app
+  no esté abierta; al completar o posponer se cancelan todas.
 - **Matriz de ajuste rápido** en el editor: la primera fila fija una hora (10:00, 14:00, 18:00, 21:00), la segunda suma
   (+10 min, +1 h, +1 día, +1 sem.) y la tercera resta. Todas las celdas se cambian en *Configuración*.
 - **Importar CSV** (menú ⋯ → *Importar CSV…*) con las columnas `"Recordatorio","Fecha límite","Repetir"` de Due.
@@ -28,7 +31,7 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
 
 ## Cómo funciona por dentro
 
-- Cada recordatorio pendiente tiene **una alarma de fecha fija** (`Alarm.Schedule.fixed`) en AlarmKit. Las repeticiones
+- Cada recordatorio pendiente tiene **alarmas de fecha fija** (la principal y las de repetición) (`Alarm.Schedule.fixed`) en AlarmKit. Las repeticiones
   las calcula la app: al completar, el recordatorio avanza a la siguiente ocurrencia y se programa una alarma nueva.
   (Las repeticiones nativas de AlarmKit sólo cubren "semanal a tal hora".)
 - Los botones de la alarma ejecutan `LiveActivityIntent`s (`CompleteReminderIntent`, `SnoozeReminderIntent`,

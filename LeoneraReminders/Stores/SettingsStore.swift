@@ -20,7 +20,7 @@ final class SettingsStore {
                 value.defaultSnooze = value.sortedSnoozeOptions.first ?? AppSettings.default.defaultSnooze
             }
             guard value != stored else { return }
-            let alarmsChanged = value.alarmSignature != stored.alarmSignature
+            let alarmsChanged = value.alarmSignature != stored.alarmSignature || value.followUp != stored.followUp
             stored = value
             persist()
             if alarmsChanged { AlarmSyncService.shared.requestSync() }

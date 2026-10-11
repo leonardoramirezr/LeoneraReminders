@@ -45,7 +45,7 @@ final class ReminderStore {
     func update(_ reminder: Reminder) {
         guard let index = reminders.firstIndex(where: { $0.id == reminder.id }) else { return }
         var updated = reminder
-        updated.scheduledAlarm = reminders[index].scheduledAlarm
+        updated.scheduledAlarms = reminders[index].scheduledAlarms
         reminders[index] = updated
         didChange()
     }
@@ -87,12 +87,12 @@ final class ReminderStore {
         didChange()
     }
 
-    /// Registra la alarma programada. No dispara otra sincronización.
-    func setScheduledAlarm(_ alarm: ScheduledAlarm?, for id: UUID) {
+    /// Registra las alarmas programadas. No dispara otra sincronización.
+    func setScheduledAlarms(_ alarms: [ScheduledAlarm], for id: UUID) {
         guard let index = reminders.firstIndex(where: { $0.id == id }),
-              reminders[index].scheduledAlarm != alarm
+              reminders[index].scheduledAlarms != alarms
         else { return }
-        reminders[index].scheduledAlarm = alarm
+        reminders[index].scheduledAlarms = alarms
         save()
     }
 
