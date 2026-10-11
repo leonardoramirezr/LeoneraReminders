@@ -5,32 +5,6 @@ import Foundation
 // Acciones de los botones de la alarma. AlarmKit las ejecuta en el proceso de la app
 // (abriéndola en segundo plano si hace falta) cuando se toca el botón correspondiente.
 
-struct CompleteReminderIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Completar recordatorio"
-    static let isDiscoverable = false
-
-    @Parameter(title: "Recordatorio")
-    var reminderID: String
-
-    @Parameter(title: "Alarma")
-    var alarmID: String
-
-    init() {
-        reminderID = ""
-        alarmID = ""
-    }
-
-    init(reminderID: UUID, alarmID: UUID) {
-        self.reminderID = reminderID.uuidString
-        self.alarmID = alarmID.uuidString
-    }
-
-    func perform() async throws -> some IntentResult {
-        await AlarmActionHandler.perform(.complete, reminderID: reminderID, alarmID: alarmID)
-        return .result()
-    }
-}
-
 struct SnoozeReminderIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Posponer recordatorio"
     static let isDiscoverable = false
@@ -57,9 +31,9 @@ struct SnoozeReminderIntent: LiveActivityIntent {
     }
 }
 
-/// Pospone con el tiempo por defecto (para que no se pierda) y abre la app con todas las opciones.
+/// Pospone con el tiempo por defecto (para que no se pierda) y abre la app para completar deslizando o elegir otro tiempo.
 struct SnoozeOptionsIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Opciones de posponer"
+    static let title: LocalizedStringResource = "Completar o posponer"
     static let isDiscoverable = false
     static let supportedModes: IntentModes = .foreground
 
@@ -104,8 +78,6 @@ enum AlarmActionHandler {
 
         let snooze = SettingsStore.shared.settings.defaultSnooze
         switch action {
-        case .complete:
-            store.complete(id: id)
         case .snooze:
             store.snooze(id: id, by: snooze)
         case .snoozeOptions:

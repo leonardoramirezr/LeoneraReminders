@@ -9,7 +9,7 @@ struct ReminderListView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var editing: EditorTarget?
-    @State private var snoozing: ReminderSheetID?
+    @State private var acting: ReminderSheetID?
     @State private var showSettings = false
     @State private var showImporter = false
     @State private var importPreview: ImportPreview?
@@ -42,9 +42,9 @@ struct ReminderListView: View {
         .sheet(item: $editing) { target in
             ReminderEditorView(target: target, existing: target.reminderID.flatMap(store.reminder(id:)))
         }
-        .sheet(item: $snoozing) { sheet in
-            SnoozeOptionsSheet(reminderID: sheet.id) {
-                snoozing = nil
+        .sheet(item: $acting) { sheet in
+            ReminderActionSheet(reminderID: sheet.id) {
+                acting = nil
                 editing = .edit(sheet.id)
             }
         }
@@ -69,11 +69,11 @@ struct ReminderListView: View {
             Text(importError ?? "")
         }
         .onChange(of: store.pendingOptionsReminderID, initial: true) { _, id in
-            // La alarma pidió mostrar las opciones de posponer.
+            // La alarma pidió completar o posponer.
             guard let id else { return }
             store.pendingOptionsReminderID = nil
             editing = nil
-            snoozing = ReminderSheetID(id: id)
+            acting = ReminderSheetID(id: id)
         }
     }
 
@@ -122,13 +122,20 @@ struct ReminderListView: View {
             reminder: reminder,
             now: now,
             isRinging: reminder.scheduledAlarms.contains { alarms.alertingAlarmIDs.contains($0.id) },
-            onToggle: { toggleCompletion(reminder) }
+            onToggle: {
+                // Completar siempre pide deslizar; reabrir un completado es inofensivo.
+                if reminder.isCompleted {
+                    store.markIncomplete(id: reminder.id)
+                } else {
+                    acting = ReminderSheetID(id: reminder.id)
+                }
+            }
         )
         .contentShape(Rectangle())
         .onTapGesture { editing = .edit(reminder.id) }
         .swipeActions(edge: .leading) {
             if !reminder.isCompleted {
-                Button { toggleCompletion(reminder) } label: {
+                Button { complete(reminder) } label: {
                     Label("Completar", systemImage: "checkmark")
                 }
                 .tint(.green)
@@ -139,7 +146,7 @@ struct ReminderListView: View {
                 Label("Eliminar", systemImage: "trash")
             }
             if !reminder.isCompleted {
-                Button { snoozing = ReminderSheetID(id: reminder.id) } label: {
+                Button { acting = ReminderSheetID(id: reminder.id) } label: {
                     Label("Posponer", systemImage: "zzz")
                 }
                 .tint(.indigo)
@@ -155,8 +162,8 @@ struct ReminderListView: View {
                 Label("Marcar como pendiente", systemImage: "arrow.uturn.backward")
             }
         } else {
-            Button { toggleCompletion(reminder) } label: {
-                Label("Completar", systemImage: "checkmark")
+            Button { acting = ReminderSheetID(id: reminder.id) } label: {
+                Label("Completar…", systemImage: "checkmark")
             }
             Menu {
                 ForEach(settingsStore.settings.sortedSnoozeOptions) { option in
@@ -286,13 +293,10 @@ struct ReminderListView: View {
         ].filter { !$0.reminders.isEmpty }
     }
 
-    private func toggleCompletion(_ reminder: Reminder) {
-        if reminder.isCompleted {
-            store.markIncomplete(id: reminder.id)
-        } else {
-            withAnimation { store.complete(id: reminder.id) }
-            completedTrigger += 1
-        }
+    /// Sólo desde el deslizamiento de la fila (que ya es un gesto deliberado).
+    private func complete(_ reminder: Reminder) {
+        withAnimation { store.complete(id: reminder.id) }
+        completedTrigger += 1
     }
 
     private func handleImport(_ result: Result<URL, any Error>) {

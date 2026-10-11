@@ -211,8 +211,6 @@ final class AlarmSyncService {
 
     nonisolated private static func button(for action: AlarmAction, settings: AppSettings) -> AlarmButton? {
         switch action {
-        case .complete:
-            return AlarmButton(text: "Completar", textColor: .white, systemImageName: "checkmark.circle.fill")
         case .snooze:
             return AlarmButton(
                 text: LocalizedStringResource(stringLiteral: "Posponer \(settings.defaultSnooze.shortLabel)"),
@@ -220,7 +218,7 @@ final class AlarmSyncService {
                 systemImageName: "zzz"
             )
         case .snoozeOptions:
-            return AlarmButton(text: "Posponer…", textColor: .white, systemImageName: "clock.arrow.circlepath")
+            return AlarmButton(text: "Completar…", textColor: .white, systemImageName: "checkmark.circle")
         case .none:
             return nil
         }
@@ -228,7 +226,6 @@ final class AlarmSyncService {
 
     nonisolated private static func intent(for action: AlarmAction, reminderID: UUID, alarmID: UUID) -> (any LiveActivityIntent)? {
         switch action {
-        case .complete: return CompleteReminderIntent(reminderID: reminderID, alarmID: alarmID)
         case .snooze: return SnoozeReminderIntent(reminderID: reminderID, alarmID: alarmID)
         case .snoozeOptions: return SnoozeOptionsIntent(reminderID: reminderID, alarmID: alarmID)
         case .none: return nil

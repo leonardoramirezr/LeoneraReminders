@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Completar o "Recordar en…" con todas las opciones configuradas.
-/// Se abre desde la lista o desde el botón «Más opciones» de la alarma.
-struct SnoozeOptionsSheet: View {
+/// Completar (deslizando) o "Recordar en…" con todas las opciones configuradas.
+/// Se abre desde la lista o desde el botón «Completar…» de la alarma.
+struct ReminderActionSheet: View {
     let reminderID: UUID
     /// Abre el editor para elegir otra fecha.
     let onEdit: () -> Void
@@ -22,7 +22,7 @@ struct SnoozeOptionsSheet: View {
                     ContentUnavailableView("El recordatorio ya no existe", systemImage: "questionmark.circle")
                 }
             }
-            .navigationTitle("Posponer")
+            .navigationTitle(store.reminder(id: reminderID)?.repeatRule == nil ? "Completar o posponer" : "Completar esta vez o posponer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -45,16 +45,14 @@ struct SnoozeOptionsSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Button {
-                    store.complete(id: reminder.id)
-                    dismiss()
-                } label: {
-                    Label(reminder.repeatRule == nil ? "Completar" : "Completar esta vez", systemImage: "checkmark")
-                        .frame(maxWidth: .infinity)
+                SlideToConfirm(title: "Desliza para completar") {
+                    Task {
+                        // Deja ver la palomita un instante antes de cerrar.
+                        try? await Task.sleep(for: .milliseconds(350))
+                        store.complete(id: reminder.id)
+                        dismiss()
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(.green)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Recordar en…")

@@ -192,8 +192,8 @@ struct AppSettingsTests {
     @Test func defaultsMatchTheRequestedSnoozeOptions() {
         #expect(AppSettings.default.sortedSnoozeOptions.map(\.shortLabel)
             == ["1 min", "5 min", "10 min", "20 min", "40 min", "60 min", "2 h", "3 h"])
-        #expect(AppSettings.default.stopAction == .complete)
-        #expect(AppSettings.default.secondaryAction == .snooze)
+        #expect(AppSettings.default.stopAction == .snooze)
+        #expect(AppSettings.default.secondaryAction == .snoozeOptions)
     }
 
     @Test func decodingMissingKeysFallsBackToDefaults() throws {
@@ -203,6 +203,14 @@ struct AppSettingsTests {
         #expect(settings.stopAction == .snooze)
         #expect(settings.secondaryAction == AppSettings.default.secondaryAction)
         #expect(settings.quickAdjustGrid == .default)
+    }
+
+    /// Antes «Detener» podía completar; esa opción ya no existe y se vuelve al valor por defecto.
+    @Test func legacyCompleteActionFallsBackToDefaults() throws {
+        let json = #"{"stopAction":"complete","secondaryAction":"complete"}"#
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(json.utf8))
+        #expect(settings.stopAction == .snooze)
+        #expect(settings.secondaryAction == .snoozeOptions)
     }
 
     @Test func sortedSnoozeOptionsRemovesDuplicates() {

@@ -53,19 +53,18 @@ struct SettingsView: View {
     private var alarmSection: some View {
         Section {
             Picker("Al detener", selection: settings.stopAction) {
-                Text("Completar").tag(AlarmAction.complete)
                 Text("Posponer \(defaultSnoozeLabel)").tag(AlarmAction.snooze)
+                Text("Posponer y abrir la app").tag(AlarmAction.snoozeOptions)
             }
             Picker("Segundo botón", selection: settings.secondaryAction) {
+                Text("Completar… (abre la app)").tag(AlarmAction.snoozeOptions)
                 Text("Posponer \(defaultSnoozeLabel)").tag(AlarmAction.snooze)
-                Text("Más opciones (abre la app)").tag(AlarmAction.snoozeOptions)
-                Text("Completar").tag(AlarmAction.complete)
                 Text("Ninguno").tag(AlarmAction.none)
             }
         } header: {
             Text("Botones de la alarma")
         } footer: {
-            Text("Desde iOS 26.1 el botón Detener lo dibuja el sistema; aquí eliges qué hace. «Más opciones» pospone \(defaultSnoozeLabel) y abre la app para elegir otro tiempo o completar.")
+            Text("Ningún botón de la alarma completa el recordatorio: para completarlo hay que deslizar «Desliza para completar» en la app. «Completar…» pospone \(defaultSnoozeLabel) (por si no terminas) y abre la app.")
         }
     }
 

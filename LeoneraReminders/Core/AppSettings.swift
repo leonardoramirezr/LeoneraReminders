@@ -1,12 +1,13 @@
 import Foundation
 
 /// Qué hace un botón de la alarma cuando suena.
+///
+/// Ninguno completa el recordatorio: completar se hace en la app deslizando un control, para que un toque
+/// rápido (como «Detener») no lo marque por error.
 enum AlarmAction: String, Codable, CaseIterable, Sendable, Identifiable {
-    /// Marca el recordatorio como completado (o avanza a la siguiente repetición).
-    case complete
     /// Vuelve a sonar dentro del tiempo de "posponer por defecto".
     case snooze
-    /// Pospone por defecto y abre la app con todas las opciones de posponer.
+    /// Pospone por defecto y abre la app para completar (deslizando) o elegir otro tiempo.
     case snoozeOptions
     /// Sin botón (sólo para el botón secundario).
     case none
@@ -121,8 +122,8 @@ struct AppSettings: Codable, Hashable, Sendable {
     static let `default` = AppSettings(
         snoozeOptions: defaultSnoozeOptions,
         defaultSnooze: .minutes(10),
-        stopAction: .complete,
-        secondaryAction: .snooze,
+        stopAction: .snooze,
+        secondaryAction: .snoozeOptions,
         quickAdjustGrid: .default,
         followUp: .default
     )

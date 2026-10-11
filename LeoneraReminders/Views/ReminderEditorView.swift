@@ -74,10 +74,11 @@ struct ReminderEditorView: View {
                         if draft.isCompleted {
                             Button("Marcar como pendiente") { draft.markIncomplete() }
                         } else {
-                            Button(draft.repeatRule == nil ? "Marcar como completado" : "Completar esta vez") {
+                            SlideToConfirm(title: draft.repeatRule == nil ? "Desliza para completar" : "Desliza para completar esta vez") {
                                 draft.complete()
                                 save()
                             }
+                            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                         }
                         Button("Eliminar recordatorio", role: .destructive) { confirmDelete = true }
                     }
