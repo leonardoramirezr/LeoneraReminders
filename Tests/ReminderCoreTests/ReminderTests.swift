@@ -213,6 +213,20 @@ struct AppSettingsTests {
         #expect(settings.secondaryAction == .snoozeOptions)
     }
 
+    @Test func soundAndSilentModeRoundTripAndAffectTheAlarm() throws {
+        var settings = AppSettings.default
+        #expect(settings.sound == .bell)
+        #expect(settings.ignoresSilentMode)
+        let before = settings.alarmSignature
+        settings.sound = .silent
+        settings.ignoresSilentMode = false
+        #expect(settings.alarmSignature != before)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+        #expect(decoded == settings)
+        #expect(AlarmSound.system.fileName == nil)
+        #expect(AlarmSound.allCases.compactMap(\.fileName).count == AlarmSound.allCases.count - 1)
+    }
+
     @Test func sortedSnoozeOptionsRemovesDuplicates() {
         var settings = AppSettings.default
         settings.snoozeOptions = [.hours(1), .minutes(5), .hours(1), .minutes(1)]

@@ -7,6 +7,10 @@ struct LeoneraRemindersApp: App {
     @State private var alarms = AlarmSyncService.shared
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        NotificationDelivery.shared.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
             ReminderListView()

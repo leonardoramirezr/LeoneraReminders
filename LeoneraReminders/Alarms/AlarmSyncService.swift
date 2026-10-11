@@ -1,3 +1,4 @@
+import ActivityKit
 import AlarmKit
 import AppIntents
 import Foundation
@@ -20,6 +21,8 @@ final class AlarmSyncService {
     /// AlarmKit rechazó más alarmas; las más lejanas quedan sin programar hasta que se liberen.
     private(set) var limitReached = false
     private(set) var lastError: String?
+    /// Permiso de notificaciones (sólo se usa en el modo que respeta el silencio).
+    private(set) var notificationsAuthorized = true
 
     private let manager = AlarmManager.shared
     private let logger = Logger(subsystem: "LeoneraReminders", category: "alarms")
@@ -88,7 +91,48 @@ final class AlarmSyncService {
     // MARK: - Sincronización
 
     private func performSync() async {
+        let settings = SettingsStore.shared.settings
         authorizationState = manager.authorizationState
+        if settings.ignoresSilentMode {
+            NotificationDelivery.shared.removeAll()
+            await syncAlarmKit(settings: settings)
+        } else {
+            // Modo que respeta el silencio: nada de AlarmKit, sólo notificaciones.
+            if authorizationState == .authorized {
+                for alarm in (try? manager.alarms) ?? [] { try? manager.cancel(id: alarm.id) }
+            }
+            await syncNotifications(settings: settings)
+        }
+    }
+
+    /// Notificaciones locales: iOS permite 64 pendientes, así que se programan las más próximas.
+    private func syncNotifications(settings: AppSettings) async {
+        let delivery = NotificationDelivery.shared
+        notificationsAuthorized = await delivery.requestAuthorization()
+        guard notificationsAuthorized else { return }
+
+        let store = ReminderStore.shared
+        let now = Date()
+        var items: [(reminder: Reminder, record: ScheduledAlarm)] = []
+        for reminder in store.reminders where !reminder.isCompleted {
+            let signature = signature(for: reminder, settings: settings)
+            for date in reminder.pendingAlarmDates(after: now.addingTimeInterval(1), followUp: settings.followUp) {
+                items.append((reminder, ScheduledAlarm(id: UUID(), fireDate: date, signature: signature)))
+            }
+        }
+        items.sort { $0.record.fireDate < $1.record.fireDate }
+        limitReached = items.count > NotificationDelivery.maxPending
+        let scheduled = Array(items.prefix(NotificationDelivery.maxPending))
+        await delivery.replaceAll(scheduled, settings: settings)
+
+        let byReminder = Dictionary(grouping: scheduled, by: \.reminder.id)
+        for reminder in store.reminders {
+            store.setScheduledAlarms(byReminder[reminder.id]?.map(\.record) ?? [], for: reminder.id)
+        }
+        await delivery.removeDelivered(keeping: Set(store.reminders.filter { !$0.isCompleted }.map(\.id)))
+    }
+
+    private func syncAlarmKit(settings: AppSettings) async {
         guard authorizationState == .authorized else { return }
 
         let existing: [Alarm]
@@ -101,7 +145,6 @@ final class AlarmSyncService {
         }
         let existingByID = Dictionary(existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let store = ReminderStore.shared
-        let settings = SettingsStore.shared.settings
         let now = Date()
 
         var keep = Set<UUID>()
@@ -205,7 +248,8 @@ final class AlarmSyncService {
             stopIntent: intent(for: settings.stopAction, reminderID: reminder.id, alarmID: alarmID),
             secondaryIntent: secondaryButton == nil
                 ? nil
-                : intent(for: settings.secondaryAction, reminderID: reminder.id, alarmID: alarmID)
+                : intent(for: settings.secondaryAction, reminderID: reminder.id, alarmID: alarmID),
+            sound: settings.sound.fileName.map { AlertConfiguration.AlertSound.named($0) } ?? .default
         )
     }
 

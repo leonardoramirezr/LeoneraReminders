@@ -188,6 +188,38 @@ struct ReminderListView: View {
 
     @ViewBuilder
     private var statusSection: some View {
+        if !settingsStore.settings.ignoresSilentMode {
+            if !alarms.notificationsAuthorized {
+                Section {
+                    Label("Las notificaciones están desactivadas", systemImage: "bell.slash")
+                        .foregroundStyle(.red)
+                    Text("Sin este permiso los recordatorios no sonarán. Actívalo en Configuración o activa «Sonar aunque esté en silencio».")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button("Abrir Configuración") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                }
+            }
+        } else {
+            alarmStatus
+        }
+        if alarms.limitReached {
+            Section {
+                Label("Se alcanzó el máximo de avisos que permite iOS; los más lejanos se programarán cuando se liberen.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+            }
+        }
+        if let error = store.lastError {
+            Section {
+                Label(error, systemImage: "exclamationmark.triangle").font(.footnote)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var alarmStatus: some View {
         switch alarms.authorizationState {
         case .denied:
             Section {
@@ -211,18 +243,7 @@ struct ReminderListView: View {
                 Text("Leonera usa alarmas para que cada recordatorio suene a su hora, aun en silencio.")
             }
         default:
-            if alarms.limitReached {
-                Section {
-                    Label("Se alcanzó el máximo de alarmas del sistema; los recordatorios más lejanos se programarán cuando se liberen.",
-                          systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                }
-            }
-        }
-        if let error = store.lastError {
-            Section {
-                Label(error, systemImage: "exclamationmark.triangle").font(.footnote)
-            }
+            EmptyView()
         }
     }
 

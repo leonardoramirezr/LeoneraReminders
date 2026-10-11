@@ -101,6 +101,44 @@ struct FollowUpSettings: Codable, Hashable, Sendable {
     static let countOptions = [3, 5, 10, 15, 20, 30]
 }
 
+/// Sonido de la alarma. Los tonos de iOS no están disponibles para otras apps, así que la app trae los suyos.
+enum AlarmSound: String, Codable, CaseIterable, Sendable, Identifiable {
+    case system
+    case bell
+    case clock
+    case rising
+    case marimba
+    case pulse
+    case silent
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .system: "Predeterminado del sistema"
+        case .bell: "Campana"
+        case .clock: "Despertador"
+        case .rising: "Ascendente"
+        case .marimba: "Marimba"
+        case .pulse: "Pulso"
+        case .silent: "Sin sonido"
+        }
+    }
+
+    /// Archivo incluido en la app (`nil` = sonido del sistema).
+    var fileName: String? {
+        switch self {
+        case .system: nil
+        case .bell: "campana.wav"
+        case .clock: "despertador.wav"
+        case .rising: "ascendente.wav"
+        case .marimba: "marimba.wav"
+        case .pulse: "pulso.wav"
+        case .silent: "silencio.wav"
+        }
+    }
+}
+
 /// Configuración de la app.
 struct AppSettings: Codable, Hashable, Sendable {
     /// Opciones de "Recordar en…" que se ofrecen al posponer.
@@ -114,6 +152,10 @@ struct AppSettings: Codable, Hashable, Sendable {
     var quickAdjustGrid: QuickAdjustGrid
     /// Volver a sonar si la alarma se ignora.
     var followUp: FollowUpSettings = .default
+    var sound: AlarmSound = .bell
+    /// `true`: alarmas de AlarmKit, que suenan aunque el iPhone esté en silencio o en Concentración.
+    /// `false`: notificaciones, que respetan el modo silencio (sólo vibran).
+    var ignoresSilentMode = true
 
     static let defaultSnoozeOptions: [TimeAmount] = [
         .minutes(1), .minutes(5), .minutes(10), .minutes(20), .minutes(40), .minutes(60), .hours(2), .hours(3),
@@ -125,7 +167,9 @@ struct AppSettings: Codable, Hashable, Sendable {
         stopAction: .snooze,
         secondaryAction: .snoozeOptions,
         quickAdjustGrid: .default,
-        followUp: .default
+        followUp: .default,
+        sound: .bell,
+        ignoresSilentMode: true
     )
 
     /// Opciones ordenadas y sin repetir.
@@ -136,13 +180,13 @@ struct AppSettings: Codable, Hashable, Sendable {
 
     /// Cambia si cambia algo de lo que se muestra o hace la alarma; sirve para saber si hay que reprogramarla.
     var alarmSignature: String {
-        "\(stopAction.rawValue)|\(secondaryAction.rawValue)|\(defaultSnooze.id)"
+        "\(stopAction.rawValue)|\(secondaryAction.rawValue)|\(defaultSnooze.id)|\(sound.rawValue)|\(ignoresSilentMode)"
     }
 }
 
 extension AppSettings {
     private enum CodingKeys: String, CodingKey {
-        case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid, followUp
+        case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid, followUp, sound, ignoresSilentMode
     }
 
     init(from decoder: any Decoder) throws {
@@ -154,7 +198,9 @@ extension AppSettings {
             stopAction: (try? c.decodeIfPresent(AlarmAction.self, forKey: .stopAction)) ?? fallback.stopAction,
             secondaryAction: (try? c.decodeIfPresent(AlarmAction.self, forKey: .secondaryAction)) ?? fallback.secondaryAction,
             quickAdjustGrid: (try? c.decodeIfPresent(QuickAdjustGrid.self, forKey: .quickAdjustGrid)) ?? fallback.quickAdjustGrid,
-            followUp: (try? c.decodeIfPresent(FollowUpSettings.self, forKey: .followUp)) ?? fallback.followUp
+            followUp: (try? c.decodeIfPresent(FollowUpSettings.self, forKey: .followUp)) ?? fallback.followUp,
+            sound: (try? c.decodeIfPresent(AlarmSound.self, forKey: .sound)) ?? fallback.sound,
+            ignoresSilentMode: (try? c.decodeIfPresent(Bool.self, forKey: .ignoresSilentMode)) ?? fallback.ignoresSilentMode
         )
     }
 }

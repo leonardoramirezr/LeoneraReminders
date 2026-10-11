@@ -61,6 +61,11 @@ struct SnoozeOptionsIntent: LiveActivityIntent {
 
 @MainActor
 enum AlarmActionHandler {
+    /// Lo que hace «Detener» (o descartar la notificación), según la configuración.
+    static func performStopAction(reminderID: String, alarmID: String) async {
+        await perform(SettingsStore.shared.settings.stopAction, reminderID: reminderID, alarmID: alarmID)
+    }
+
     static func perform(_ action: AlarmAction, reminderID: String, alarmID: String) async {
         let alarm = UUID(uuidString: alarmID)
         if let alarm { try? AlarmManager.shared.stop(id: alarm) }
@@ -71,6 +76,7 @@ enum AlarmActionHandler {
             if let alarm { try? AlarmManager.shared.cancel(id: alarm) }
             return
         }
+        guard !reminder.isCompleted else { return }
         // Una alarma vieja (el recordatorio ya se atendió desde la app) no debe cambiarlo otra vez.
         if let alarm, !reminder.scheduledAlarms.contains(where: { $0.id == alarm }), reminder.alertDate > Date() {
             return

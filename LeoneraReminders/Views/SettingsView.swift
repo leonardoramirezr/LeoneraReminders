@@ -19,6 +19,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                soundSection
                 alarmSection
                 followUpSection
                 snoozeSection
@@ -65,6 +66,23 @@ struct SettingsView: View {
             Text("Botones de la alarma")
         } footer: {
             Text("Ningún botón de la alarma completa el recordatorio: para completarlo hay que deslizar «Desliza para completar» en la app. «Completar…» pospone \(defaultSnoozeLabel) (por si no terminas) y abre la app.")
+        }
+    }
+
+    private var soundSection: some View {
+        Section {
+            NavigationLink {
+                SoundPickerView(selection: settings.sound)
+            } label: {
+                LabeledContent("Sonido", value: settingsStore.settings.sound.label)
+            }
+            Toggle("Sonar aunque esté en silencio", isOn: settings.ignoresSilentMode)
+        } header: {
+            Text("Sonido")
+        } footer: {
+            Text(settingsStore.settings.ignoresSilentMode
+                ? "Los recordatorios llegan como alarmas: suenan aunque el iPhone esté en silencio o en un modo de Concentración."
+                : "Los recordatorios llegan como notificaciones: respetan el modo silencio (sólo vibran) y la Concentración. iOS guarda hasta 64 pendientes, así que se programan las más próximas.")
         }
     }
 

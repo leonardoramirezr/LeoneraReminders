@@ -26,6 +26,12 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
   no esté abierta; al completar o posponer se cancelan todas.
 - **Al entrar a la app, ningún vencido se queda callado**: los vencidos (con o sin repetición) que no estén sonando
   vuelven a sonar al empezar el siguiente minuto, y desde ahí siguen las repeticiones. Siguen apareciendo en «Vencidos».
+- **Sonido** (*Configuración → Sonido*): Predeterminado del sistema, Campana, Despertador, Ascendente, Marimba, Pulso o
+  **Sin sonido**. Los tonos de iOS no están disponibles para otras apps, así que estos van incluidos en la app
+  (`LeoneraReminders/Sounds`, sintetizados para el proyecto).
+- **«Sonar aunque esté en silencio»**: encendido (por defecto) usa alarmas de AlarmKit, que siempre suenan aunque el
+  iPhone esté en silencio o en Concentración. Apagado usa notificaciones locales, que respetan el silencio (sólo
+  vibran); tienen los mismos botones, pero iOS sólo guarda 64 pendientes, así que se programan las más próximas.
 - **Matriz de ajuste rápido** en el editor: la primera fila fija una hora (10:00, 14:00, 18:00, 21:00), la segunda suma
   (+10 min, +1 h, +1 día, +1 sem.) y la tercera resta. Todas las celdas se cambian en *Configuración*.
 - **Importar CSV** (menú ⋯ → *Importar CSV…*) con las columnas `"Recordatorio","Fecha límite","Repetir"` de Due.
