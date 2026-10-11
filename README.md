@@ -23,6 +23,8 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
 - **Si ignoras la alarma, vuelve a sonar**: cada recordatorio deja programadas alarmas extra cada minuto (hasta 10 veces,
   configurable en *Configuración → Si ignoras la alarma*). Como están programadas de antemano, suenan aunque la app
   no esté abierta; al completar o posponer se cancelan todas.
+- **Al entrar a la app, ningún vencido se queda callado**: los vencidos (con o sin repetición) que no estén sonando
+  vuelven a sonar al empezar el siguiente minuto, y desde ahí siguen las repeticiones. Siguen apareciendo en «Vencidos».
 - **Matriz de ajuste rápido** en el editor: la primera fila fija una hora (10:00, 14:00, 18:00, 21:00), la segunda suma
   (+10 min, +1 h, +1 día, +1 sem.) y la tercera resta. Todas las celdas se cambian en *Configuración*.
 - **Importar CSV** (menú ⋯ → *Importar CSV…*) con las columnas `"Recordatorio","Fecha límite","Repetir"` de Due.

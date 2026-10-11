@@ -84,7 +84,20 @@ final class ReminderStore {
     func importReminders(_ imported: [Reminder]) {
         guard !imported.isEmpty else { return }
         reminders.append(contentsOf: imported)
+        retryOverdue()
         didChange()
+    }
+
+    /// Hace que todos los vencidos sin atender vuelvan a sonar en el siguiente minuto
+    /// (salvo los que ya están sonando o van a sonar antes). Se llama al entrar a la app.
+    func retryOverdue(ringing: Set<UUID> = []) {
+        let followUp = SettingsStore.shared.settings.followUp
+        var changed = false
+        for index in reminders.indices
+        where !reminders[index].scheduledAlarms.contains(where: { ringing.contains($0.id) }) {
+            if reminders[index].retryIfOverdue(followUp: followUp) { changed = true }
+        }
+        if changed { didChange() }
     }
 
     /// Registra las alarmas programadas. No dispara otra sincronización.

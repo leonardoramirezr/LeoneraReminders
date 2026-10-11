@@ -15,8 +15,11 @@ struct LeoneraRemindersApp: App {
                 .environment(alarms)
                 .tint(.brand)
                 .task { await alarms.start() }
-                .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { alarms.requestSync() }
+                .onChange(of: scenePhase, initial: true) { _, phase in
+                    guard phase == .active else { return }
+                    // Ningún vencido se queda callado: vuelve a sonar en el siguiente minuto.
+                    store.retryOverdue(ringing: alarms.alertingAlarmIDs)
+                    alarms.requestSync()
                 }
         }
     }

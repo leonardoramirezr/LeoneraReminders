@@ -97,6 +97,32 @@ struct ReminderTests {
         #expect(again == reminder)
     }
 
+    @Test func overdueRemindersRingAgainAtTheNextMinute() {
+        let followUp = FollowUpSettings(isEnabled: true, interval: .minutes(1), count: 3)
+        var reminder = Reminder(title: "Pastilla", dueDate: local(2026, 10, 16, 21))
+        let now = local(2026, 10, 16, 23, 40).addingTimeInterval(25) // 23:40:25, ya sin repeticiones pendientes
+        let changed1 = reminder.retryIfOverdue(now: now, followUp: followUp, calendar: mexico)
+        #expect(changed1)
+        #expect(reminder.isOverdue(now: now)) // sigue en "Vencidos"
+        #expect(reminder.pendingAlarmDates(after: now, followUp: followUp, calendar: mexico)
+            == [local(2026, 10, 16, 23, 41), local(2026, 10, 16, 23, 42), local(2026, 10, 16, 23, 43), local(2026, 10, 16, 23, 44)])
+        // Si ya va a sonar en el siguiente minuto, no se mueve.
+        let stable = reminder
+        let changed2 = reminder.retryIfOverdue(now: now.addingTimeInterval(10), followUp: followUp, calendar: mexico)
+        #expect(!changed2)
+        #expect(reminder == stable)
+        // Con repeticiones aún pendientes al minuto siguiente tampoco cambia.
+        var recent = Reminder(title: "Otro", dueDate: local(2026, 10, 16, 21))
+        let changed3 = recent.retryIfOverdue(now: local(2026, 10, 16, 21, 1).addingTimeInterval(5), followUp: followUp, calendar: mexico)
+        #expect(!changed3)
+        // No vencido: nada. Al completar o posponer se olvida el reintento.
+        var future = Reminder(title: "Futuro", dueDate: local(2026, 10, 17, 9))
+        let changed4 = future.retryIfOverdue(now: now, followUp: followUp, calendar: mexico)
+        #expect(!changed4)
+        reminder.snooze(by: .minutes(5), now: now, calendar: mexico)
+        #expect(reminder.retryFrom == nil)
+    }
+
     @Test func pendingAlarmDatesIncludeFollowUps() {
         let reminder = Reminder(title: "Pastilla", dueDate: local(2026, 10, 16, 21))
         let followUp = FollowUpSettings(isEnabled: true, interval: .minutes(1), count: 3)

@@ -36,7 +36,7 @@ struct ImportPreviewView: View {
                     Toggle("Omitir duplicados", isOn: $skipDuplicates)
                     Toggle("Pasar repetitivos vencidos a su próxima fecha", isOn: $advancePastDue)
                 } footer: {
-                    Text("Un duplicado tiene el mismo título que uno que ya tienes y la misma fecha o la misma repetición. Los vencidos sin repetición se importan como vencidos.")
+                    Text("Un duplicado tiene el mismo título que uno que ya tienes y la misma fecha o la misma repetición. Los vencidos que queden se programan para sonar en el siguiente minuto.")
                 }
 
                 if !preview.result.issues.isEmpty {
