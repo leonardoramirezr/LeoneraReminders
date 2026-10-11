@@ -1,0 +1,87 @@
+name: Build IPA
+
+# Cada push compila un .ipa y lo publica en un release con tag:
+#   main          → 0.x.0 (sube el número del medio en cada push; release estable "Latest")
+#   otras ramas   → build-<run_number>-<commit corto> (pre-release, nunca "Latest")
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: write
+
+concurrency:
+  # Los pushes a main van en fila para que dos builds no calculen la misma versión.
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # trae los tags para calcular la siguiente versión
+
+      - name: Elegir Xcode 26 más reciente
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE/Contents/Developer"; fi
+          xcodebuild -version
+
+      - name: Calcular tag y versión
+        id: version
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          LAST=$(git tag -l '0.*.0' | grep -E '^0\.[0-9]+\.0$' | sort -t. -k2,2n | tail -1 || true)
+          LAST_MINOR=$([ -n "$LAST" ] && echo "$LAST" | cut -d. -f2 || echo 0)
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            TAG="0.$((LAST_MINOR + 1)).0"
+            MARKETING="$TAG"
+          else
+            TAG="build-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+            MARKETING="0.${LAST_MINOR}.0"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "marketing=$MARKETING" >> "$GITHUB_OUTPUT"
+          echo "Tag: $TAG · Versión: $MARKETING ($GITHUB_RUN_NUMBER)"
+
+      - name: Pruebas de la lógica (swift test)
+        run: swift test
+
+      - name: Compilar (sin firmar)
+        run: |
+          xcodebuild build \
+            -project LeoneraReminders.xcodeproj \
+            -target LeoneraReminders \
+            -configuration Release \
+            -sdk iphoneos \
+            SYMROOT="$PWD/build" \
+            MARKETING_VERSION="${{ steps.version.outputs.marketing }}" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Empaquetar .ipa
+        id: ipa
+        run: |
+          IPA="LeoneraReminders-${{ steps.version.outputs.tag }}.ipa"
+          mkdir -p Payload
+          cp -R build/Release-iphoneos/LeoneraReminders.app Payload/
+          zip -qry "$IPA" Payload
+          echo "path=$IPA" >> "$GITHUB_OUTPUT"
+
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          IPA: ${{ steps.ipa.outputs.path }}
+        run: |
+          NOTES=$(printf 'Rama: `%s`\nCommit: %s\n\n%s\n\nEl .ipa no está firmado: hay que firmarlo (p. ej. con Sideloadly, AltStore o tu certificado) para instalarlo.' \
+            "$GITHUB_REF_NAME" "$GITHUB_SHA" "$(git log -1 --format=%B)")
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            gh release create "$TAG" "$IPA" --target "$GITHUB_SHA" --title "$TAG" --notes "$NOTES" --latest
+          else
+            gh release create "$TAG" "$IPA" --target "$GITHUB_SHA" --title "$TAG" --notes "$NOTES" --prerelease --latest=false
+          fi

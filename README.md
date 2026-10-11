@@ -55,3 +55,15 @@ La lógica de `LeoneraReminders/Core` también es un paquete de Swift (`Package.
 ```sh
 swift test
 ```
+
+## Builds automáticos (.ipa)
+
+`.github/workflows/build.yml` compila un `.ipa` en cada push y lo publica como release:
+
+| Rama | Tag | Release |
+|------|-----|---------|
+| `main` | `0.x.0` (empieza en `0.1.0`; cada push sube el número del medio) | Estable, marcada como *Latest* |
+| cualquier otra | `build-<N>-<commit>` (`N` = número de ejecución del workflow, `commit` = 7 caracteres del hash) | Pre-release, nunca *Latest* |
+
+El `.ipa` sale **sin firmar** (no hay certificados en el repositorio): para instalarlo hay que firmarlo, por ejemplo con
+Sideloadly, AltStore o tu propio certificado de desarrollador.
