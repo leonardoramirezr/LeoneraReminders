@@ -1,0 +1,268 @@
+import SwiftUI
+import UIKit
+
+struct SettingsView: View {
+    @Environment(SettingsStore.self) private var settingsStore
+    @Environment(AlarmSyncService.self) private var alarms
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    @State private var editingCell: GridCellPosition?
+    @State private var addingSnooze = false
+
+    private var settings: Binding<AppSettings> {
+        Binding(get: { settingsStore.settings }, set: { settingsStore.settings = $0 })
+    }
+
+    private var defaultSnoozeLabel: String { settingsStore.settings.defaultSnooze.shortLabel }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                alarmSection
+                snoozeSection
+                gridSection
+                permissionSection
+            }
+            .navigationTitle("Configuración")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Listo") { dismiss() }
+                }
+            }
+            .sheet(item: $editingCell) { position in
+                GridCellEditor(
+                    position: position,
+                    cell: settingsStore.settings.quickAdjustGrid.rows[position.row][position.column]
+                ) { newCell in
+                    settings.wrappedValue.quickAdjustGrid.setCell(newCell, column: position.column)
+                }
+            }
+            .sheet(isPresented: $addingSnooze) {
+                TimeAmountEditor(title: "Nueva opción", initial: .minutes(15), units: [.minute, .hour, .day]) { amount in
+                    settings.wrappedValue.snoozeOptions.append(amount)
+                }
+            }
+        }
+    }
+
+    // MARK: - Secciones
+
+    private var alarmSection: some View {
+        Section {
+            Picker("Al detener", selection: settings.stopAction) {
+                Text("Completar").tag(AlarmAction.complete)
+                Text("Posponer \(defaultSnoozeLabel)").tag(AlarmAction.snooze)
+            }
+            Picker("Segundo botón", selection: settings.secondaryAction) {
+                Text("Posponer \(defaultSnoozeLabel)").tag(AlarmAction.snooze)
+                Text("Más opciones (abre la app)").tag(AlarmAction.snoozeOptions)
+                Text("Completar").tag(AlarmAction.complete)
+                Text("Ninguno").tag(AlarmAction.none)
+            }
+        } header: {
+            Text("Botones de la alarma")
+        } footer: {
+            Text("Desde iOS 26.1 el botón Detener lo dibuja el sistema; aquí eliges qué hace. «Más opciones» pospone \(defaultSnoozeLabel) y abre la app para elegir otro tiempo o completar.")
+        }
+    }
+
+    private var snoozeSection: some View {
+        Section {
+            Picker("Posponer por defecto", selection: settings.defaultSnooze) {
+                ForEach(settingsStore.settings.sortedSnoozeOptions) { option in
+                    Text(option.longLabel).tag(option)
+                }
+            }
+            ForEach(settingsStore.settings.sortedSnoozeOptions) { option in
+                HStack {
+                    Text("Recordar en \(option.longLabel)")
+                    Spacer()
+                    if option == settingsStore.settings.defaultSnooze {
+                        Text("Por defecto").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .onDelete { offsets in
+                let options = settingsStore.settings.sortedSnoozeOptions
+                let removed = Set(offsets.map { options[$0] })
+                guard removed.count < options.count else { return }
+                settings.wrappedValue.snoozeOptions.removeAll { removed.contains($0) }
+            }
+            Button {
+                addingSnooze = true
+            } label: {
+                Label("Agregar opción", systemImage: "plus")
+            }
+            Button("Restaurar opciones") {
+                settings.wrappedValue.snoozeOptions = AppSettings.defaultSnoozeOptions
+            }
+        } header: {
+            Text("Posponer")
+        } footer: {
+            Text("Desliza para quitar una opción. Aparecen al posponer desde la app y en «Más opciones» de la alarma.")
+        }
+    }
+
+    private var gridSection: some View {
+        Section {
+            QuickAdjustGridView(grid: settingsStore.settings.quickAdjustGrid) { row, column, _ in
+                editingCell = GridCellPosition(row: row, column: column)
+            }
+            .padding(.vertical, 4)
+            Button("Restaurar matriz") {
+                settings.wrappedValue.quickAdjustGrid = .default
+            }
+        } header: {
+            Text("Matriz de ajuste rápido")
+        } footer: {
+            Text("Toca una celda para cambiarla. La primera fila fija la hora, la segunda suma y la tercera resta.")
+        }
+    }
+
+    @ViewBuilder
+    private var permissionSection: some View {
+        Section("Permiso de alarmas") {
+            switch alarms.authorizationState {
+            case .authorized:
+                Label("Permitidas", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .notDetermined:
+                Button("Permitir alarmas") {
+                    Task { await alarms.requestAuthorization() }
+                }
+            default:
+                Label("Denegadas", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                Button("Abrir Configuración") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+            }
+            if let error = alarms.lastError {
+                Text(error).font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+struct GridCellPosition: Identifiable, Hashable {
+    let row: Int
+    let column: Int
+    var id: String { "\(row)-\(column)" }
+}
+
+/// Edita una celda de la matriz: una hora (fila 1) o una cantidad (filas 2 y 3).
+struct GridCellEditor: View {
+    let position: GridCellPosition
+    let cell: QuickAdjustGrid.Cell
+    let onSave: (QuickAdjustGrid.Cell) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var time = Date()
+    @State private var amount = TimeAmount.minutes(10)
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                switch cell {
+                case .setTime:
+                    DatePicker("Hora", selection: $time, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                case .add, .subtract:
+                    TimeAmountFields(amount: $amount, units: TimeAmount.Unit.allCases)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Guardar") {
+                        switch cell {
+                        case .setTime: onSave(.setTime(TimeOfDay(of: time)))
+                        case .add: onSave(.add(amount))
+                        case .subtract: onSave(.subtract(amount))
+                        }
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                switch cell {
+                case .setTime(let value): time = value.applied(to: Date())
+                case .add(let value), .subtract(let value): amount = value
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var title: String {
+        switch cell {
+        case .setTime: "Hora (columna \(position.column + 1))"
+        case .add: "Sumar (columna \(position.column + 1))"
+        case .subtract: "Restar (columna \(position.column + 1))"
+        }
+    }
+}
+
+/// Hoja para crear una cantidad de tiempo (p. ej. una nueva opción de posponer).
+struct TimeAmountEditor: View {
+    let title: String
+    let units: [TimeAmount.Unit]
+    let onSave: (TimeAmount) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var amount: TimeAmount
+
+    init(title: String, initial: TimeAmount, units: [TimeAmount.Unit], onSave: @escaping (TimeAmount) -> Void) {
+        self.title = title
+        self.units = units
+        self.onSave = onSave
+        _amount = State(initialValue: initial)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TimeAmountFields(amount: $amount, units: units)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Agregar") {
+                        onSave(amount)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+struct TimeAmountFields: View {
+    @Binding var amount: TimeAmount
+    let units: [TimeAmount.Unit]
+
+    var body: some View {
+        Stepper(value: $amount.value, in: 1...999) {
+            Text(amount.longLabel)
+        }
+        Picker("Unidad", selection: $amount.unit) {
+            ForEach(units) { unit in
+                Text(unit.longName(for: amount.value).capitalized).tag(unit)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+}

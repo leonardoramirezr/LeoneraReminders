@@ -1,0 +1,119 @@
+import AlarmKit
+import AppIntents
+import Foundation
+
+// Acciones de los botones de la alarma. AlarmKit las ejecuta en el proceso de la app
+// (abriéndola en segundo plano si hace falta) cuando se toca el botón correspondiente.
+
+struct CompleteReminderIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Completar recordatorio"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Recordatorio")
+    var reminderID: String
+
+    @Parameter(title: "Alarma")
+    var alarmID: String
+
+    init() {
+        reminderID = ""
+        alarmID = ""
+    }
+
+    init(reminderID: UUID, alarmID: UUID) {
+        self.reminderID = reminderID.uuidString
+        self.alarmID = alarmID.uuidString
+    }
+
+    func perform() async throws -> some IntentResult {
+        await AlarmActionHandler.perform(.complete, reminderID: reminderID, alarmID: alarmID)
+        return .result()
+    }
+}
+
+struct SnoozeReminderIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Posponer recordatorio"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Recordatorio")
+    var reminderID: String
+
+    @Parameter(title: "Alarma")
+    var alarmID: String
+
+    init() {
+        reminderID = ""
+        alarmID = ""
+    }
+
+    init(reminderID: UUID, alarmID: UUID) {
+        self.reminderID = reminderID.uuidString
+        self.alarmID = alarmID.uuidString
+    }
+
+    func perform() async throws -> some IntentResult {
+        await AlarmActionHandler.perform(.snooze, reminderID: reminderID, alarmID: alarmID)
+        return .result()
+    }
+}
+
+/// Pospone con el tiempo por defecto (para que no se pierda) y abre la app con todas las opciones.
+struct SnoozeOptionsIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Opciones de posponer"
+    static let isDiscoverable = false
+    static let supportedModes: IntentModes = .foreground
+
+    @Parameter(title: "Recordatorio")
+    var reminderID: String
+
+    @Parameter(title: "Alarma")
+    var alarmID: String
+
+    init() {
+        reminderID = ""
+        alarmID = ""
+    }
+
+    init(reminderID: UUID, alarmID: UUID) {
+        self.reminderID = reminderID.uuidString
+        self.alarmID = alarmID.uuidString
+    }
+
+    func perform() async throws -> some IntentResult {
+        await AlarmActionHandler.perform(.snoozeOptions, reminderID: reminderID, alarmID: alarmID)
+        return .result()
+    }
+}
+
+@MainActor
+enum AlarmActionHandler {
+    static func perform(_ action: AlarmAction, reminderID: String, alarmID: String) async {
+        let alarm = UUID(uuidString: alarmID)
+        if let alarm { try? AlarmManager.shared.stop(id: alarm) }
+
+        let store = ReminderStore.shared
+        guard let id = UUID(uuidString: reminderID), let reminder = store.reminder(id: id) else {
+            // El recordatorio ya no existe: sólo se quita la alarma.
+            if let alarm { try? AlarmManager.shared.cancel(id: alarm) }
+            return
+        }
+        // Una alarma vieja (el recordatorio ya se atendió desde la app) no debe cambiarlo otra vez.
+        if let alarm, reminder.scheduledAlarm?.id != alarm, reminder.alertDate > Date() {
+            return
+        }
+
+        let snooze = SettingsStore.shared.settings.defaultSnooze
+        switch action {
+        case .complete:
+            store.complete(id: id)
+        case .snooze:
+            store.snooze(id: id, by: snooze)
+        case .snoozeOptions:
+            store.snooze(id: id, by: snooze)
+            store.pendingOptionsReminderID = id
+        case .none:
+            break
+        }
+        await AlarmSyncService.shared.syncNow()
+    }
+}
