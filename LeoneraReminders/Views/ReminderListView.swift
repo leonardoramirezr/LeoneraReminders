@@ -172,11 +172,6 @@ struct ReminderListView: View {
             } label: {
                 Label("Posponer", systemImage: "zzz")
             }
-            if reminder.snoozedUntil != nil {
-                Button { store.clearSnooze(id: reminder.id) } label: {
-                    Label("Quitar posposición", systemImage: "xmark.circle")
-                }
-            }
         }
         Button { editing = .edit(reminder.id) } label: {
             Label("Editar", systemImage: "pencil")
@@ -297,8 +292,8 @@ struct ReminderListView: View {
 
         var overdue: [Reminder] = [], todays: [Reminder] = [], tomorrows: [Reminder] = []
         var week: [Reminder] = [], later: [Reminder] = []
-        for reminder in filtered.filter({ !$0.isCompleted }).sorted(by: { $0.alertDate < $1.alertDate }) {
-            let date = reminder.alertDate
+        for reminder in filtered.filter({ !$0.isCompleted }).sorted(by: { $0.dueDate < $1.dueDate }) {
+            let date = reminder.dueDate
             if date <= now { overdue.append(reminder) }
             else if date < tomorrow { todays.append(reminder) }
             else if date < dayAfter { tomorrows.append(reminder) }
@@ -377,11 +372,6 @@ struct ReminderRow: View {
                         Label("Vuelve a sonar \(DateText.time(next.fireDate))", systemImage: "arrow.clockwise")
                             .font(.subheadline)
                             .foregroundStyle(Color.brand)
-                    }
-                    if let snoozed = reminder.snoozedUntil {
-                        Label("Pospuesto hasta \(DateText.relative(snoozed, now: now))", systemImage: "zzz")
-                            .font(.subheadline)
-                            .foregroundStyle(.indigo)
                     }
                 }
                 if let rule = reminder.repeatRule {

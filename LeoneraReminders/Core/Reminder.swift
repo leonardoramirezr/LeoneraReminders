@@ -4,11 +4,10 @@ import Foundation
 struct Reminder: Identifiable, Codable, Hashable, Sendable {
     var id: UUID
     var title: String
-    /// Fecha límite de la ocurrencia actual ("Fecha límite" en el CSV de Due).
+    /// Fecha límite de la ocurrencia actual ("Fecha límite" en el CSV de Due); la alarma suena a esta hora.
+    /// Posponer la mueve.
     var dueDate: Date
     var repeatRule: RepeatRule?
-    /// Si se pospuso, la alarma suena a esta hora en lugar de `dueDate`.
-    var snoozedUntil: Date?
     /// Vencido sin atender: sus alarmas vuelven a empezar a esta hora (sigue contando como vencido).
     var retryFrom: Date?
     /// Sólo los recordatorios sin repetición quedan completados; los repetitivos avanzan a la siguiente fecha.
@@ -23,7 +22,6 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
         title: String,
         dueDate: Date,
         repeatRule: RepeatRule? = nil,
-        snoozedUntil: Date? = nil,
         retryFrom: Date? = nil,
         completedAt: Date? = nil,
         lastCompletedAt: Date? = nil,
@@ -34,7 +32,6 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
         self.title = title
         self.dueDate = dueDate
         self.repeatRule = repeatRule
-        self.snoozedUntil = snoozedUntil
         self.retryFrom = retryFrom
         self.completedAt = completedAt
         self.lastCompletedAt = lastCompletedAt
@@ -44,17 +41,13 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
 
     var isCompleted: Bool { completedAt != nil }
 
-    /// Momento en que debe sonar la alarma.
-    var alertDate: Date { snoozedUntil ?? dueDate }
-
     func isOverdue(now: Date = Date()) -> Bool {
-        !isCompleted && alertDate <= now
+        !isCompleted && dueDate <= now
     }
 
     /// Marca la ocurrencia actual como completada. Si se repite, avanza a la siguiente ocurrencia
     /// posterior a `now`; si no, queda completado.
     mutating func complete(now: Date = Date(), calendar: Calendar = .current) {
-        snoozedUntil = nil
         retryFrom = nil
         lastCompletedAt = now
         if let rule = repeatRule,
@@ -65,16 +58,15 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
         }
     }
 
-    /// Hace que la alarma vuelva a sonar dentro de `amount`.
+    /// Pospone: la fecha límite pasa a dentro de `amount` (contando desde ahora) y ahí vuelve a sonar.
     mutating func snooze(by amount: TimeAmount, now: Date = Date(), calendar: Calendar = .current) {
-        snoozedUntil = amount.added(to: now, calendar: calendar)
+        dueDate = amount.added(to: now, calendar: calendar)
         retryFrom = nil
     }
 
-    /// Cambia la fecha límite (anula cualquier posposición).
+    /// Cambia la fecha límite.
     mutating func reschedule(to date: Date) {
         dueDate = date
-        snoozedUntil = nil
         retryFrom = nil
         completedAt = nil
     }
@@ -87,7 +79,7 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
     /// cada `followUp.interval` después, hasta `followUp.count` veces. Si ya pasó la hora, sólo quedan las repeticiones.
     func pendingAlarmDates(after now: Date, followUp: FollowUpSettings, calendar: Calendar = .current) -> [Date] {
         guard !isCompleted else { return [] }
-        let start = retryFrom.map { max($0, alertDate) } ?? alertDate
+        let start = retryFrom.map { max($0, dueDate) } ?? dueDate
         var dates = [start]
         if followUp.isEnabled, followUp.count > 0 {
             for k in 1...followUp.count {
@@ -115,11 +107,10 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
     /// Devuelve `true` si cambió algo.
     @discardableResult
     mutating func advancePastDueRepetition(now: Date = Date(), calendar: Calendar = .current) -> Bool {
-        guard !isCompleted, let rule = repeatRule, alertDate <= now,
+        guard !isCompleted, let rule = repeatRule, dueDate <= now,
               let next = rule.nextOccurrence(from: dueDate, after: now, calendar: calendar)
         else { return false }
         dueDate = next
-        snoozedUntil = nil
         retryFrom = nil
         return true
     }
@@ -135,9 +126,11 @@ struct ScheduledAlarm: Codable, Hashable, Sendable {
 
 extension Reminder {
     private enum CodingKeys: String, CodingKey {
-        case id, title, dueDate, repeatRule, snoozedUntil, retryFrom, completedAt, lastCompletedAt, createdAt, scheduledAlarms
+        case id, title, dueDate, repeatRule, retryFrom, completedAt, lastCompletedAt, createdAt, scheduledAlarms
         /// Versiones anteriores guardaban una sola alarma.
         case scheduledAlarm
+        /// Versiones anteriores posponían sin mover la fecha límite; al leerlas, la fecha límite pasa a ser esa hora.
+        case snoozedUntil
     }
 
     init(from decoder: any Decoder) throws {
@@ -145,9 +138,8 @@ extension Reminder {
         self.init(
             id: try c.decode(UUID.self, forKey: .id),
             title: try c.decodeIfPresent(String.self, forKey: .title) ?? "",
-            dueDate: try c.decode(Date.self, forKey: .dueDate),
+            dueDate: try c.decodeIfPresent(Date.self, forKey: .snoozedUntil) ?? c.decode(Date.self, forKey: .dueDate),
             repeatRule: try c.decodeIfPresent(RepeatRule.self, forKey: .repeatRule),
-            snoozedUntil: try c.decodeIfPresent(Date.self, forKey: .snoozedUntil),
             retryFrom: try c.decodeIfPresent(Date.self, forKey: .retryFrom),
             completedAt: try c.decodeIfPresent(Date.self, forKey: .completedAt),
             lastCompletedAt: try c.decodeIfPresent(Date.self, forKey: .lastCompletedAt),
@@ -165,7 +157,6 @@ extension Reminder {
         try c.encode(title, forKey: .title)
         try c.encode(dueDate, forKey: .dueDate)
         try c.encodeIfPresent(repeatRule, forKey: .repeatRule)
-        try c.encodeIfPresent(snoozedUntil, forKey: .snoozedUntil)
         try c.encodeIfPresent(retryFrom, forKey: .retryFrom)
         try c.encodeIfPresent(completedAt, forKey: .completedAt)
         try c.encodeIfPresent(lastCompletedAt, forKey: .lastCompletedAt)

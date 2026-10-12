@@ -31,9 +31,10 @@ struct SnoozeReminderIntent: LiveActivityIntent {
     }
 }
 
-/// Pospone con el tiempo por defecto (para que no se pierda) y abre la app para completar deslizando o elegir otro tiempo.
+/// «Abrir app»: pospone con el tiempo por defecto (para que no se pierda) y abre la app para completar deslizando
+/// o elegir otro tiempo.
 struct SnoozeOptionsIntent: LiveActivityIntent {
-    static let title: LocalizedStringResource = "Completar o posponer"
+    static let title: LocalizedStringResource = "Abrir app"
     static let isDiscoverable = false
     static let supportedModes: IntentModes = .foreground
 
@@ -78,7 +79,7 @@ enum AlarmActionHandler {
         }
         guard !reminder.isCompleted else { return }
         // Una alarma vieja (el recordatorio ya se atendió desde la app) no debe cambiarlo otra vez.
-        if let alarm, !reminder.scheduledAlarms.contains(where: { $0.id == alarm }), reminder.alertDate > Date() {
+        if let alarm, !reminder.scheduledAlarms.contains(where: { $0.id == alarm }), reminder.dueDate > Date() {
             return
         }
 

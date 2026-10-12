@@ -58,14 +58,14 @@ struct SettingsView: View {
                 Text("Posponer y abrir la app").tag(AlarmAction.snoozeOptions)
             }
             Picker("Segundo botón", selection: settings.secondaryAction) {
-                Text("Completar… (abre la app)").tag(AlarmAction.snoozeOptions)
+                Text("Abrir app").tag(AlarmAction.snoozeOptions)
                 Text("Posponer \(defaultSnoozeLabel)").tag(AlarmAction.snooze)
                 Text("Ninguno").tag(AlarmAction.none)
             }
         } header: {
             Text("Botones de la alarma")
         } footer: {
-            Text("Ningún botón de la alarma completa el recordatorio: para completarlo hay que deslizar «Desliza para completar» en la app. «Completar…» pospone \(defaultSnoozeLabel) (por si no terminas) y abre la app.")
+            Text("Ningún botón de la alarma completa el recordatorio: para completarlo hay que deslizar «Desliza para completar» en la app. «Abrir app» pospone \(defaultSnoozeLabel) (por si no terminas) y abre la app para completar o elegir otro tiempo.")
         }
     }
 
@@ -163,10 +163,23 @@ struct SettingsView: View {
             Button("Restaurar matriz") {
                 settings.wrappedValue.quickAdjustGrid = .default
             }
+            Picker("Sumar a un vencido", selection: settings.overdueAdditionBase) {
+                Text("Desde la fecha límite").tag(OverdueAdditionBase.dueDate)
+                Text("Desde ahora").tag(OverdueAdditionBase.now)
+            }
         } header: {
             Text("Matriz de ajuste rápido")
         } footer: {
-            Text("Toca una celda para cambiarla. La primera fila fija la hora, la segunda suma y la tercera resta.")
+            Text("Toca una celda para cambiarla. La primera fila fija la hora, la segunda suma y la tercera resta. " + overdueAdditionFooter)
+        }
+    }
+
+    private var overdueAdditionFooter: String {
+        switch settingsStore.settings.overdueAdditionBase {
+        case .dueDate:
+            "Si el recordatorio ya venció, +10 min, +1 h, etc. suman a su fecha límite, aunque ya haya pasado."
+        case .now:
+            "Si el recordatorio ya venció, +10 min, +1 h, etc. suman desde ahora, como al posponer. Restar y fijar la hora siempre parten de la fecha límite."
         }
     }
 

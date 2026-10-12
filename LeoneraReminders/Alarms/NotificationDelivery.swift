@@ -34,7 +34,7 @@ final class NotificationDelivery: NSObject, UNUserNotificationCenterDelegate {
         for item in items {
             let content = UNMutableNotificationContent()
             content.title = item.reminder.title
-            content.body = item.record.fireDate == item.reminder.alertDate ? "Recordatorio" : "Sigue pendiente"
+            content.body = item.record.fireDate == item.reminder.dueDate ? "Recordatorio" : "Sigue pendiente"
             content.sound = Self.sound(for: settings.sound)
             content.categoryIdentifier = Self.categoryID
             content.interruptionLevel = .active
@@ -74,7 +74,7 @@ final class NotificationDelivery: NSObject, UNUserNotificationCenterDelegate {
         case .snooze:
             actions.append(UNNotificationAction(identifier: Self.snoozeActionID, title: "Posponer \(settings.defaultSnooze.shortLabel)"))
         case .snoozeOptions:
-            actions.append(UNNotificationAction(identifier: Self.optionsActionID, title: "Completar…", options: [.foreground]))
+            actions.append(UNNotificationAction(identifier: Self.optionsActionID, title: "Abrir app", options: [.foreground]))
         case .none:
             break
         }

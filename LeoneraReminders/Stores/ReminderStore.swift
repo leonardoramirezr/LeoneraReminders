@@ -73,10 +73,6 @@ final class ReminderStore {
         mutate(id) { $0.snooze(by: amount) }
     }
 
-    func clearSnooze(id: UUID) {
-        mutate(id) { $0.snoozedUntil = nil }
-    }
-
     func reschedule(id: UUID, to date: Date) {
         mutate(id) { $0.reschedule(to: date) }
     }

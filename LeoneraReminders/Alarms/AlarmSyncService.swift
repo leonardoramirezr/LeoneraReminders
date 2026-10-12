@@ -158,7 +158,7 @@ final class AlarmSyncService {
                 guard let alarm = existingByID[record.id] else { continue }
                 let stillWanted = wanted.contains(record.fireDate) && record.signature == signature
                 // Si está sonando y el recordatorio no ha cambiado de hora, se deja sonar.
-                let ringing = alarm.state == .alerting && reminder.alertDate <= now
+                let ringing = alarm.state == .alerting && reminder.dueDate <= now
                 if stillWanted || ringing {
                     keep.insert(record.id)
                     current.append(record)
@@ -167,7 +167,7 @@ final class AlarmSyncService {
             kept[reminder.id] = current
             let scheduledDates = Set(current.map(\.fireDate))
             for date in wanted where !scheduledDates.contains(date) {
-                missing.append((reminder, date, date == reminder.alertDate))
+                missing.append((reminder, date, date == reminder.dueDate))
             }
         }
 
@@ -202,8 +202,11 @@ final class AlarmSyncService {
         limitReached = reachedLimit
     }
 
+    /// Sube cuando cambia el texto o el ícono de los botones, para reprogramar las alarmas ya creadas.
+    private static let buttonsVersion = 2
+
     private func signature(for reminder: Reminder, settings: AppSettings) -> String {
-        "\(reminder.title)|\(settings.alarmSignature)"
+        "\(reminder.title)|\(settings.alarmSignature)|\(Self.buttonsVersion)"
     }
 
     // MARK: - Configuración de la alarma
@@ -262,7 +265,7 @@ final class AlarmSyncService {
                 systemImageName: "zzz"
             )
         case .snoozeOptions:
-            return AlarmButton(text: "Completar…", textColor: .white, systemImageName: "checkmark.circle")
+            return AlarmButton(text: "Abrir app", textColor: .white, systemImageName: "arrow.up.forward.app")
         case .none:
             return nil
         }

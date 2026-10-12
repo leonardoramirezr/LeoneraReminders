@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Completar (deslizando) o "Recordar en…" con todas las opciones configuradas.
-/// Se abre desde la lista o desde el botón «Completar…» de la alarma.
+/// Se abre desde la lista o desde el botón «Abrir app» de la alarma.
 struct ReminderActionSheet: View {
     let reminderID: UUID
     /// Abre el editor para elegir otra fecha.
@@ -40,7 +40,7 @@ struct ReminderActionSheet: View {
                     Text(reminder.title)
                         .font(.title3.weight(.semibold))
                         .multilineTextAlignment(.center)
-                    Text(subtitle(for: reminder))
+                    Text("Fecha límite: \(DateText.relative(reminder.dueDate))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -77,12 +77,5 @@ struct ReminderActionSheet: View {
             }
             .padding()
         }
-    }
-
-    private func subtitle(for reminder: Reminder) -> String {
-        if let snoozed = reminder.snoozedUntil {
-            return "Pospuesto hasta \(DateText.relative(snoozed))"
-        }
-        return "Fecha límite: \(DateText.relative(reminder.dueDate))"
     }
 }

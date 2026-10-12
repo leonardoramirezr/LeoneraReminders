@@ -8,8 +8,7 @@ struct ReminderTests {
         reminder.snooze(by: .minutes(10), now: local(2026, 10, 10, 9), calendar: mexico)
         reminder.complete(now: local(2026, 10, 10, 9, 5), calendar: mexico)
         #expect(reminder.isCompleted)
-        #expect(reminder.snoozedUntil == nil)
-        #expect(reminder.dueDate == local(2026, 10, 10, 9))
+        #expect(reminder.dueDate == local(2026, 10, 10, 9, 10))
     }
 
     @Test func completingRepeatingReminderMovesToNextOccurrence() {
@@ -44,13 +43,31 @@ struct ReminderTests {
         #expect(reminder.dueDate == local(2026, 10, 24, 8))
     }
 
-    @Test func snoozeChangesOnlyTheAlertDate() {
+    @Test func snoozeMovesTheDueDateFromNow() {
         var reminder = Reminder(title: "Comprar fruta", dueDate: local(2026, 10, 16, 11))
         reminder.snooze(by: .minutes(20), now: local(2026, 10, 16, 11, 1), calendar: mexico)
-        #expect(reminder.dueDate == local(2026, 10, 16, 11))
-        #expect(reminder.alertDate == local(2026, 10, 16, 11, 21))
+        #expect(reminder.dueDate == local(2026, 10, 16, 11, 21))
         #expect(!reminder.isOverdue(now: local(2026, 10, 16, 11, 10)))
         #expect(reminder.isOverdue(now: local(2026, 10, 16, 11, 21)))
+    }
+
+    @Test func snoozingARepeatingReminderKeepsTheRule() {
+        let rule = RepeatRule(frequency: .daily, hour: 21)
+        var reminder = Reminder(title: "Pastilla", dueDate: local(2026, 10, 16, 21), repeatRule: rule)
+        reminder.snooze(by: .minutes(10), now: local(2026, 10, 16, 21, 2), calendar: mexico)
+        #expect(reminder.dueDate == local(2026, 10, 16, 21, 12))
+        reminder.complete(now: local(2026, 10, 16, 21, 13), calendar: mexico)
+        #expect(reminder.repeatRule == rule)
+        #expect(reminder.dueDate == local(2026, 10, 17, 21))
+    }
+
+    /// Antes posponer guardaba otra hora sin tocar la fecha límite; al leerlo, esa hora pasa a ser la fecha límite.
+    @Test func decodesLegacySnoozeAsTheDueDate() throws {
+        let json = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","title":"Hola","dueDate":0,"snoozedUntil":600}"#
+        let reminder = try JSONDecoder().decode(Reminder.self, from: Data(json.utf8))
+        #expect(reminder.dueDate == Date(timeIntervalSinceReferenceDate: 600))
+        let encoded = String(decoding: try JSONEncoder().encode(reminder), as: UTF8.self)
+        #expect(!encoded.contains("snoozedUntil"))
     }
 
     @Test func rescheduleClearsSnoozeAndCompletion() {
@@ -59,7 +76,7 @@ struct ReminderTests {
         reminder.complete(now: local(2026, 10, 16, 11), calendar: mexico)
         reminder.reschedule(to: local(2026, 10, 18, 10))
         #expect(!reminder.isCompleted)
-        #expect(reminder.alertDate == local(2026, 10, 18, 10))
+        #expect(reminder.dueDate == local(2026, 10, 18, 10))
     }
 
     @Test func advancePastDueRepetitionOnlyTouchesOverdueRepeatingReminders() {
@@ -169,6 +186,20 @@ struct QuickAdjustGridTests {
         #expect(rows[2][3].apply(to: start, calendar: mexico) == local(2026, 10, 9, 11, 7))
     }
 
+    @Test func overdueAdditionsCanCountFromNow() {
+        let rows = grid.rows
+        let now = local(2026, 10, 16, 14, 1)
+        // Por defecto suma a la fecha límite aunque ya haya pasado.
+        #expect(rows[1][0].apply(to: start, now: now, calendar: mexico) == local(2026, 10, 16, 11, 17))
+        // Desde ahora: sólo cambian las sumas, y sólo si ya venció.
+        #expect(rows[1][0].apply(to: start, now: now, overdueBase: .now, calendar: mexico) == local(2026, 10, 16, 14, 11))
+        #expect(rows[1][1].apply(to: start, now: now, overdueBase: .now, calendar: mexico) == local(2026, 10, 16, 15, 1))
+        #expect(rows[2][0].apply(to: start, now: now, overdueBase: .now, calendar: mexico) == local(2026, 10, 16, 10, 57))
+        #expect(rows[0][3].apply(to: start, now: now, overdueBase: .now, calendar: mexico) == local(2026, 10, 16, 21, 0))
+        let future = local(2026, 10, 16, 18)
+        #expect(rows[1][0].apply(to: future, now: now, overdueBase: .now, calendar: mexico) == local(2026, 10, 16, 18, 10))
+    }
+
     @Test func setCellReplacesOnlyThatCell() {
         var custom = QuickAdjustGrid(times: [], additions: [.minutes(5)], subtractions: [])
         custom.setCell(.setTime(TimeOfDay(hour: 7, minute: 30)), column: 2)
@@ -203,6 +234,14 @@ struct AppSettingsTests {
         #expect(settings.stopAction == .snooze)
         #expect(settings.secondaryAction == AppSettings.default.secondaryAction)
         #expect(settings.quickAdjustGrid == .default)
+        #expect(settings.overdueAdditionBase == .dueDate)
+    }
+
+    @Test func overdueAdditionBaseRoundTrips() throws {
+        var settings = AppSettings.default
+        settings.overdueAdditionBase = .now
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+        #expect(decoded.overdueAdditionBase == .now)
     }
 
     /// Antes «Detener» podía completar; esa opción ya no existe y se vuelve al valor por defecto.
