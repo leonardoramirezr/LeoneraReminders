@@ -86,9 +86,9 @@ enum AlarmActionHandler {
         let snooze = SettingsStore.shared.settings.defaultSnooze
         switch action {
         case .snooze:
-            store.snooze(id: id, by: snooze)
+            store.snooze(id: id, by: snooze, undoable: false)
         case .snoozeOptions:
-            store.snooze(id: id, by: snooze)
+            store.snooze(id: id, by: snooze, undoable: false)
             store.pendingOptionsReminderID = id
         case .none:
             break
