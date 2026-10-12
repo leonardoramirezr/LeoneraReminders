@@ -18,7 +18,7 @@ struct ReminderEditorView: View {
     private var isNew: Bool { target.reminderID == nil }
     private var trimmedTitle: String { draft.title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// Cambiar la fecha límite reprograma la ocurrencia (quita la posposición).
+    /// Cambiar la fecha límite reprograma la ocurrencia.
     private var dueDate: Binding<Date> {
         Binding(get: { draft.dueDate }, set: { draft.reschedule(to: $0) })
     }
@@ -35,25 +35,19 @@ struct ReminderEditorView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(DateText.relative(draft.dueDate))
                             .font(.title3.weight(.semibold))
-                            .foregroundStyle(draft.dueDate < Date() ? Color.red : Color.primary)
+                            .foregroundStyle(draft.dueDate <= Date() ? Color.red : Color.primary)
                         Text(DateText.full(draft.dueDate))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     DatePicker("Fecha y hora", selection: dueDate)
                     QuickAdjustGridView(grid: settingsStore.settings.quickAdjustGrid) { _, _, cell in
-                        withAnimation(.snappy) { dueDate.wrappedValue = cell.apply(to: draft.dueDate) }
+                        let adjusted = cell.apply(to: draft.dueDate, overdueBase: settingsStore.settings.overdueAdditionBase)
+                        withAnimation(.snappy) { dueDate.wrappedValue = adjusted }
                     }
                     .padding(.vertical, 4)
                 } header: {
                     Text("Fecha límite")
-                }
-
-                if let snoozed = draft.snoozedUntil {
-                    Section {
-                        LabeledContent("Pospuesto hasta", value: DateText.relative(snoozed))
-                        Button("Quitar posposición") { draft.snoozedUntil = nil }
-                    }
                 }
 
                 Section {

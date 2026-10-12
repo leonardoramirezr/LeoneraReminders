@@ -7,7 +7,7 @@ import Foundation
 enum AlarmAction: String, Codable, CaseIterable, Sendable, Identifiable {
     /// Vuelve a sonar dentro del tiempo de "posponer por defecto".
     case snooze
-    /// Pospone por defecto y abre la app para completar (deslizando) o elegir otro tiempo.
+    /// «Abrir app»: pospone por defecto y abre la app para completar (deslizando) o elegir otro tiempo.
     case snoozeOptions
     /// Sin botón (sólo para el botón secundario).
     case none
@@ -63,11 +63,28 @@ struct QuickAdjustGrid: Codable, Hashable, Sendable {
     }
 }
 
+/// Desde dónde suman las celdas de la matriz cuando la fecha límite ya pasó.
+enum OverdueAdditionBase: String, Codable, CaseIterable, Sendable, Identifiable {
+    /// Desde la fecha límite, aunque ya haya pasado.
+    case dueDate
+    /// Desde ahora (como posponer), ignorando la fecha límite vencida.
+    case now
+
+    var id: String { rawValue }
+}
+
 extension QuickAdjustGrid.Cell {
-    func apply(to date: Date, calendar: Calendar = .current) -> Date {
+    /// Aplica la celda a `date`. Si `date` ya pasó y `overdueBase` es `.now`, las sumas cuentan desde `now`;
+    /// fijar la hora y restar siempre parten de `date`.
+    func apply(
+        to date: Date,
+        now: Date = Date(),
+        overdueBase: OverdueAdditionBase = .dueDate,
+        calendar: Calendar = .current
+    ) -> Date {
         switch self {
         case .setTime(let time): time.applied(to: date, calendar: calendar)
-        case .add(let amount): amount.added(to: date, calendar: calendar)
+        case .add(let amount): amount.added(to: overdueBase == .now && date <= now ? now : date, calendar: calendar)
         case .subtract(let amount): amount.subtracted(from: date, calendar: calendar)
         }
     }
@@ -150,6 +167,8 @@ struct AppSettings: Codable, Hashable, Sendable {
     /// Acción del segundo botón de la alarma.
     var secondaryAction: AlarmAction
     var quickAdjustGrid: QuickAdjustGrid
+    /// Desde dónde suma la matriz en un recordatorio vencido.
+    var overdueAdditionBase: OverdueAdditionBase = .dueDate
     /// Volver a sonar si la alarma se ignora.
     var followUp: FollowUpSettings = .default
     var sound: AlarmSound = .bell
@@ -167,6 +186,7 @@ struct AppSettings: Codable, Hashable, Sendable {
         stopAction: .snooze,
         secondaryAction: .snoozeOptions,
         quickAdjustGrid: .default,
+        overdueAdditionBase: .dueDate,
         followUp: .default,
         sound: .bell,
         ignoresSilentMode: true
@@ -186,7 +206,7 @@ struct AppSettings: Codable, Hashable, Sendable {
 
 extension AppSettings {
     private enum CodingKeys: String, CodingKey {
-        case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid, followUp, sound, ignoresSilentMode
+        case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid, overdueAdditionBase, followUp, sound, ignoresSilentMode
     }
 
     init(from decoder: any Decoder) throws {
@@ -198,6 +218,7 @@ extension AppSettings {
             stopAction: (try? c.decodeIfPresent(AlarmAction.self, forKey: .stopAction)) ?? fallback.stopAction,
             secondaryAction: (try? c.decodeIfPresent(AlarmAction.self, forKey: .secondaryAction)) ?? fallback.secondaryAction,
             quickAdjustGrid: (try? c.decodeIfPresent(QuickAdjustGrid.self, forKey: .quickAdjustGrid)) ?? fallback.quickAdjustGrid,
+            overdueAdditionBase: (try? c.decodeIfPresent(OverdueAdditionBase.self, forKey: .overdueAdditionBase)) ?? fallback.overdueAdditionBase,
             followUp: (try? c.decodeIfPresent(FollowUpSettings.self, forKey: .followUp)) ?? fallback.followUp,
             sound: (try? c.decodeIfPresent(AlarmSound.self, forKey: .sound)) ?? fallback.sound,
             ignoresSilentMode: (try? c.decodeIfPresent(Bool.self, forKey: .ignoresSilentMode)) ?? fallback.ignoresSilentMode
