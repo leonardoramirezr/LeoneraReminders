@@ -68,8 +68,10 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           LAST=$(git tag -l '0.*.0' | grep -E '^0\.[0-9]+\.0$' | sort -t. -k2,2n | tail -1 || true)
           LAST_MINOR=$([ -n "$LAST" ] && echo "$LAST" | cut -d. -f2 || echo 0)
+          # Un re-run de main reutiliza la versión que ya tiene el commit en vez de subir otra.
+          HEAD_TAG=$(git tag --points-at HEAD | grep -E '^0\.[0-9]+\.0$' | sort -t. -k2,2n | tail -1 || true)
           if [ "$GITHUB_REF_NAME" = "main" ]; then
-            TAG="0.$((LAST_MINOR + 1)).0"
+            TAG="${HEAD_TAG:-0.$((LAST_MINOR + 1)).0}"
             MARKETING="$TAG"
             CHANNEL=stable
           else
@@ -305,9 +307,16 @@ jobs:
           NOTES=$(printf '%s\n\nRama: `%s`\nCommit: %s\n\n%s' \
             "$INSTALL" "$GITHUB_REF_NAME" "$GITHUB_SHA" "$(git log -1 --format=%B)")
           if [ "$GITHUB_REF_NAME" = "main" ]; then
-            gh release create "$TAG" "$IPA" --target "$GITHUB_SHA" --title "$TAG" --notes "$NOTES" --latest
+            FLAGS=(--latest)
           else
-            gh release create "$TAG" "$IPA" --target "$GITHUB_SHA" --title "$TAG" --notes "$NOTES" --prerelease --latest=false
+            FLAGS=(--prerelease --latest=false)
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Re-run de la misma ejecución: el release ya existe; se reemplaza el .ipa y las notas.
+            gh release upload "$TAG" "$IPA" --clobber
+            gh release edit "$TAG" --notes "$NOTES" "${FLAGS[@]}"
+          else
+            gh release create "$TAG" "$IPA" --target "$GITHUB_SHA" --title "$TAG" --notes "$NOTES" "${FLAGS[@]}"
           fi
 
       # --- Limpieza -----------------------------------------------------------------------
