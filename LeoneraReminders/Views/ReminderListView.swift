@@ -146,6 +146,11 @@ struct ReminderListView: View {
         .listStyle(.insetGrouped)
     }
 
+    /// Borde cuyas acciones completan: deslizar de derecha a izquierda muestra las del borde final.
+    private var completeEdge: HorizontalEdge {
+        settingsStore.settings.swipeCompleteDirection == .rightToLeft ? .trailing : .leading
+    }
+
     private func row(_ reminder: Reminder, now: Date) -> some View {
         ReminderRow(
             reminder: reminder,
@@ -162,7 +167,7 @@ struct ReminderListView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { editing = .edit(reminder.id) }
-        .swipeActions(edge: .leading) {
+        .swipeActions(edge: completeEdge) {
             if !reminder.isCompleted {
                 Button { complete(reminder) } label: {
                     Label("Completar", systemImage: "checkmark")
@@ -170,7 +175,7 @@ struct ReminderListView: View {
                 .tint(.green)
             }
         }
-        .swipeActions(edge: .trailing) {
+        .swipeActions(edge: completeEdge == .trailing ? .leading : .trailing) {
             Button(role: .destructive) { store.delete(ids: [reminder.id]) } label: {
                 Label("Eliminar", systemImage: "trash")
             }
