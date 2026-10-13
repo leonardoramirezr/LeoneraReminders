@@ -12,6 +12,8 @@ final class ReminderStore {
     /// Recordatorio que se pospuso con "Más opciones" desde la alarma: la app muestra las opciones al abrirse.
     var pendingOptionsReminderID: UUID?
     private(set) var lastError: String?
+    /// El último cambio que se puede deshacer (completar, modificar, posponer o eliminar).
+    private(set) var undoable: UndoableChange?
 
     private let fileURL: URL
     private let logger = Logger(subsystem: "LeoneraReminders", category: "store")
@@ -44,37 +46,97 @@ final class ReminderStore {
     /// Reemplaza el recordatorio con el mismo id (conserva la alarma registrada, que sólo cambia la sincronización).
     func update(_ reminder: Reminder) {
         guard let index = reminders.firstIndex(where: { $0.id == reminder.id }) else { return }
+        let previous = reminders[index]
         var updated = reminder
-        updated.scheduledAlarms = reminders[index].scheduledAlarms
+        updated.scheduledAlarms = previous.scheduledAlarms
+        guard updated != previous else { return }
+        let message = updated.lastCompletedAt != previous.lastCompletedAt
+            ? completedMessage(updated)
+            : "Recordatorio modificado"
+        registerUndo(message, ids: [reminder.id])
         reminders[index] = updated
         didChange()
     }
 
     func delete(ids: some Collection<UUID>) {
         let set = Set(ids)
+        let count = reminders.count(where: { set.contains($0.id) })
+        guard count > 0 else { return }
+        registerUndo(count == 1 ? "Recordatorio eliminado" : "\(count) recordatorios eliminados", ids: set)
         reminders.removeAll { set.contains($0.id) }
         didChange()
     }
 
     func deleteCompleted() {
-        reminders.removeAll(where: \.isCompleted)
-        didChange()
+        delete(ids: reminders.filter(\.isCompleted).map(\.id))
     }
 
     func complete(id: UUID) {
-        mutate(id) { $0.complete() }
+        guard let reminder = reminder(id: id) else { return }
+        var completed = reminder
+        completed.complete()
+        registerUndo(completedMessage(completed), ids: [id])
+        mutate(id) { $0 = completed }
     }
 
     func markIncomplete(id: UUID) {
+        registerUndo("Marcado como pendiente", ids: [id])
         mutate(id) { $0.markIncomplete() }
     }
 
-    func snooze(id: UUID, by amount: TimeAmount) {
+    /// `undoable` en falso cuando lo pide la alarma (no hay nadie viendo la app para deshacerlo).
+    func snooze(id: UUID, by amount: TimeAmount, undoable: Bool = true) {
+        if undoable { registerUndo("Se recordará en \(amount.longLabel)", ids: [id]) }
         mutate(id) { $0.snooze(by: amount) }
     }
 
     func reschedule(id: UUID, to date: Date) {
+        registerUndo("Recordatorio modificado", ids: [id])
         mutate(id) { $0.reschedule(to: date) }
+    }
+
+    // MARK: - Deshacer
+
+    /// Copia de los recordatorios tal como estaban antes de un cambio, con su posición en la lista.
+    struct UndoableChange: Identifiable {
+        let id = UUID()
+        let message: String
+        fileprivate let previous: [(index: Int, reminder: Reminder)]
+    }
+
+    /// Devuelve los recordatorios afectados a como estaban. Los cambios hechos a otros recordatorios después se respetan.
+    func undo() {
+        guard let change = undoable else { return }
+        undoable = nil
+        for (index, old) in change.previous {
+            var restored = old
+            if let current = reminders.firstIndex(where: { $0.id == old.id }) {
+                restored.scheduledAlarms = reminders[current].scheduledAlarms
+                reminders[current] = restored
+            } else {
+                // Se había eliminado: sus alarmas ya se cancelaron, la sincronización programa las nuevas.
+                restored.scheduledAlarms = []
+                reminders.insert(restored, at: min(index, reminders.count))
+            }
+        }
+        didChange()
+    }
+
+    /// Se llama cuando el aviso de deshacer deja de mostrarse.
+    func discardUndo(id: UndoableChange.ID) {
+        if undoable?.id == id { undoable = nil }
+    }
+
+    private func registerUndo(_ message: String, ids: Set<UUID>) {
+        let previous = reminders.enumerated()
+            .filter { ids.contains($0.element.id) }
+            .map { (index: $0.offset, reminder: $0.element) }
+        guard !previous.isEmpty else { return }
+        undoable = UndoableChange(message: message, previous: previous)
+    }
+
+    private func completedMessage(_ reminder: Reminder) -> String {
+        reminder.isCompleted ? "Recordatorio completado" : "Completado · siguiente \(DateText.relative(reminder.dueDate))"
     }
 
     func importReminders(_ imported: [Reminder]) {

@@ -40,6 +40,13 @@ struct ReminderListView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                if let change = store.undoable {
+                    UndoToast(change: change)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.snappy, value: store.undoable?.id)
         }
         .sensoryFeedback(.success, trigger: completedTrigger)
         .sheet(item: $editing) { target in
@@ -366,6 +373,53 @@ struct ReminderListView: View {
             }
         case .failure(let error):
             importError = error.localizedDescription
+        }
+    }
+}
+
+/// Aviso con «Deshacer» que se queda unos segundos después de completar, modificar, posponer o eliminar.
+struct UndoToast: View {
+    let change: ReminderStore.UndoableChange
+
+    @Environment(ReminderStore.self) private var store
+
+    /// Tiempo que se muestra el aviso.
+    static let duration: Duration = .seconds(10)
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(change.message)
+                .font(.subheadline)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+            Button {
+                withAnimation { store.undo() }
+            } label: {
+                Label("Deshacer", systemImage: "arrow.uturn.backward")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.borderless)
+            .keyboardShortcut("z", modifiers: .command)
+            Button {
+                store.discardUndo(id: change.id)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Cerrar")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: .capsule)
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+        .task(id: change.id) {
+            try? await Task.sleep(for: Self.duration)
+            guard !Task.isCancelled else { return }
+            store.discardUndo(id: change.id)
         }
     }
 }
