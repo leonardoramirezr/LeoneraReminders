@@ -28,6 +28,10 @@ struct ImportPreviewView: View {
                     LabeledContent("Archivo", value: preview.fileName)
                     LabeledContent("Filas leídas", value: "\(preview.result.entries.count)")
                     LabeledContent("Con repetición", value: "\(prepared.reminders.filter { $0.repeatRule != nil }.count)")
+                    let completed = prepared.reminders.filter(\.isCompleted).count
+                    if completed > 0 {
+                        LabeledContent("Completados", value: "\(completed)")
+                    }
                     if prepared.duplicates > 0 {
                         LabeledContent("Duplicados omitidos", value: "\(prepared.duplicates)")
                     }
@@ -56,9 +60,15 @@ struct ImportPreviewView: View {
                     ForEach(prepared.reminders) { reminder in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(reminder.title)
-                            Text(DateText.relative(reminder.dueDate))
-                                .font(.subheadline)
-                                .foregroundStyle(reminder.isOverdue() ? Color.red : Color.secondary)
+                            if let completedAt = reminder.completedAt {
+                                Label("Completado \(DateText.relative(completedAt))", systemImage: "checkmark")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(DateText.relative(reminder.dueDate))
+                                    .font(.subheadline)
+                                    .foregroundStyle(reminder.isOverdue() ? Color.red : Color.secondary)
+                            }
                             if let rule = reminder.repeatRule {
                                 Label(rule.summary(), systemImage: "repeat")
                                     .font(.caption)

@@ -14,6 +14,9 @@ struct ReminderListView: View {
     @State private var showImporter = false
     @State private var importPreview: ImportPreview?
     @State private var importError: String?
+    @State private var exportFile: CSVDocument?
+    @State private var exportFileName = ""
+    @State private var exportError: String?
     @State private var showCompleted = false
     @State private var searchText = ""
     @State private var completedTrigger = 0
@@ -74,6 +77,25 @@ struct ReminderListView: View {
             Button("Aceptar", role: .cancel) {}
         } message: {
             Text(importError ?? "")
+        }
+        .fileExporter(
+            isPresented: Binding(
+                get: { exportFile != nil },
+                set: { if !$0 { exportFile = nil } }
+            ),
+            document: exportFile,
+            contentType: .commaSeparatedText,
+            defaultFilename: exportFileName
+        ) { result in
+            if case .failure(let error) = result { exportError = error.localizedDescription }
+        }
+        .alert("No se pudo exportar", isPresented: Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )) {
+            Button("Aceptar", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
         }
         .onChange(of: store.pendingOptionsReminderID, initial: true) { _, id in
             // La alarma pidió completar o posponer.
@@ -256,6 +278,11 @@ struct ReminderListView: View {
                 Button { showImporter = true } label: {
                     Label("Importar CSV…", systemImage: "square.and.arrow.down")
                 }
+                if !store.reminders.isEmpty {
+                    Button { startExport() } label: {
+                        Label("Exportar CSV…", systemImage: "square.and.arrow.up")
+                    }
+                }
                 Button { showSettings = true } label: {
                     Label("Configuración", systemImage: "gear")
                 }
@@ -320,6 +347,12 @@ struct ReminderListView: View {
     private func complete(_ reminder: Reminder) {
         withAnimation { store.complete(id: reminder.id) }
         completedTrigger += 1
+    }
+
+    /// Todos los recordatorios (también los completados), en el formato que «Importar CSV…» vuelve a leer.
+    private func startExport() {
+        exportFileName = ReminderCSVExporter.fileName()
+        exportFile = CSVDocument(data: ReminderCSVExporter.data(for: store.reminders.sorted { $0.dueDate < $1.dueDate }))
     }
 
     private func handleImport(_ result: Result<URL, any Error>) {
