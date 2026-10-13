@@ -61,6 +61,7 @@ LeoneraReminders/
   Views/      SwiftUI
 Config/Info.plist
 Tests/ReminderCoreTests/
+scripts/      Builds firmados: API de App Store Connect (asc.py) y GitHub Pages (publish-pages.sh, pages.py)
 ```
 
 ## Pruebas
@@ -71,14 +72,66 @@ La lógica de `LeoneraReminders/Core` también es un paquete de Swift (`Package.
 swift test
 ```
 
-## Builds automáticos (.ipa)
+## Builds automáticos: instalar desde Safari en el iPhone
 
-`.github/workflows/build.yml` compila un `.ipa` en cada push y lo publica como release:
+`.github/workflows/build.yml` se ejecuta en cada push (a cualquier rama salvo `gh-pages`) y a mano desde
+*Actions › Build IPA › Run workflow*. Compila, firma **Ad Hoc** y publica el `.ipa` en un release y en GitHub Pages,
+con una página desde la que se instala tocando un botón en Safari.
 
 | Rama | Tag | Release |
 |------|-----|---------|
 | `main` | `0.x.0` (empieza en `0.1.0`; cada push sube el número del medio) | Estable, marcada como *Latest* |
 | cualquier otra | `build-<N>-<commit>` (`N` = número de ejecución del workflow, `commit` = 7 caracteres del hash) | Pre-release, nunca *Latest* |
 
-El `.ipa` sale **sin firmar** (no hay certificados en el repositorio): para instalarlo hay que firmarlo, por ejemplo con
-Sideloadly, AltStore o tu propio certificado de desarrollador.
+Ningún build se cancela: los de `main` van en fila (para no repetir versión) y los de otras ramas corren en paralelo.
+
+### Secrets necesarios
+
+En *Settings › Secrets and variables › Actions › Repository secrets* (secrets del repositorio, no de una organización):
+
+| Secret | Qué es |
+|--------|--------|
+| `ASC_KEY_ID` | Key ID de la clave de API de App Store Connect |
+| `ASC_ISSUER_ID` | Issuer ID (aparece arriba de la lista de claves) |
+| `ASC_KEY_P8` | Contenido completo del archivo `AuthKey_XXXX.p8` (con las líneas `BEGIN`/`END`) |
+| `APPLE_TEAM_ID` | Team ID de la cuenta de Apple Developer (10 caracteres) |
+
+La clave debe ser una **Team Key** (*App Store Connect › Users and Access › Integrations › App Store Connect API*)
+con rol **Admin**: Xcode la usa para registrar el App ID, crear los perfiles y firmar con el certificado de
+distribución gestionado en la nube.
+
+- **Sin ningún secret** se genera un `.ipa` sin firmar (sólo va al release; hay que firmarlo con Sideloadly, AltStore
+  o un certificado propio).
+- **Con sólo algunos** el workflow falla indicando cuáles faltan.
+
+### Qué hace cada build firmado
+
+1. `scripts/asc.py check` comprueba con la API de App Store Connect que la clave funciona y que hay al menos un
+   dispositivo iOS registrado.
+2. `xcodebuild archive` con firma automática (`-allowProvisioningUpdates` y la clave de API). El bundle ID es
+   `com.<owner>.<repo>` en minúsculas (aquí `com.leonardoramirezr.leonerareminders`) o el valor de la variable de
+   repositorio `APP_BUNDLE_ID` si existe; se pasa a `xcodebuild` como build setting `APP_BUNDLE_ID`, y el proyecto
+   usa `$(APP_BUNDLE_ID)` (una extensión usaría `$(APP_BUNDLE_ID).<sufijo>`). La app no usa App Groups ni otras
+   capacidades que haya que activar a mano en el portal.
+3. `xcodebuild -exportArchive` con `method=release-testing` (Ad Hoc): el perfil incluye **todos los dispositivos
+   registrados**. Se verifica que cada bundle lleve un perfil Ad Hoc y se muestra cuántos dispositivos incluye.
+4. Se publica en GitHub Pages (`scripts/publish-pages.sh`) y se agrega el enlace de instalación al resumen de la
+   ejecución y a las notas del release.
+5. Al final se revoca el certificado "Apple Development" temporal que `xcodebuild` crea en cada ejecución.
+
+### Activar GitHub Pages (una sola vez)
+
+Después del **primer build firmado** (que crea la rama `gh-pages`), ve a *Settings › Pages* y en
+*Build and deployment* elige *Deploy from a branch*, rama **`gh-pages`** y carpeta **`/ (root)`**.
+
+La página queda en `https://leonardoramirezr.github.io/LeoneraReminders/`: la portada lista todos los builds y tiene
+un botón para instalar la última versión estable; cada build tiene su carpeta (`/<tag>/`) con el `.ipa`, el
+`manifest.plist` y su propio botón de instalación. La rama `gh-pages` se reescribe en cada publicación como un único
+commit (los `.ipa` no se acumulan en el historial) y guarda todas las versiones de `main` y los últimos 50 builds de
+otras ramas.
+
+### Añadir un iPhone
+
+Basta con registrar su UDID en [Certificates, Identifiers & Profiles › Devices](https://developer.apple.com/account/resources/devices/list)
+y hacer push (o lanzar el workflow a mano): el siguiente build regenera el perfil Ad Hoc con todos los dispositivos
+registrados. Los builds anteriores sólo se instalan en los dispositivos que ya estaban registrados cuando se hicieron.
