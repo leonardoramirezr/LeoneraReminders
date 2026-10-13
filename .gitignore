@@ -8,3 +8,6 @@ DerivedData/
 .swiftpm/
 
 .DS_Store
+
+# Python
+__pycache__/
