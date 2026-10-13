@@ -1,6 +1,7 @@
 import Foundation
 
 /// Convierte un CSV con columnas "Recordatorio", "Fecha límite" y "Repetir" (exportación de Due) en recordatorios.
+/// La columna opcional "Completado" (la escribe `ReminderCSVExporter`) conserva los ya completados.
 enum ReminderCSVImporter {
     struct Issue: Hashable, Sendable, Identifiable {
         enum Kind: Hashable, Sendable {
@@ -61,6 +62,7 @@ enum ReminderCSVImporter {
             let title = row.field(columns.title).trimmingCharacters(in: .whitespacesAndNewlines)
             let dateText = row.field(columns.date).trimmingCharacters(in: .whitespacesAndNewlines)
             let repeatText = columns.repeat.map { row.field($0) }?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let completedText = columns.completed.map { row.field($0) }?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
             guard !title.isEmpty else {
                 if !dateText.isEmpty || !repeatText.isEmpty {
@@ -84,7 +86,8 @@ enum ReminderCSVImporter {
                 issues.append(Issue(line: row.line, kind: .repeatNotRecognized, title: title,
                                     message: "Repetición no reconocida: \(repeatText)"))
             }
-            let reminder = Reminder(title: title, dueDate: dueDate, repeatRule: rule, createdAt: now)
+            let completedAt = parseDate(completedText, calendar: calendar)
+            let reminder = Reminder(title: title, dueDate: dueDate, repeatRule: rule, completedAt: completedAt, createdAt: now)
             entries.append(Entry(line: row.line, reminder: reminder, repeatText: repeatText))
         }
         return Result(entries: entries, issues: issues)
@@ -104,11 +107,13 @@ enum ReminderCSVImporter {
         var title: Int
         var date: Int
         var `repeat`: Int?
+        var completed: Int?
 
-        init(title: Int, date: Int, repeat: Int?) {
+        init(title: Int, date: Int, repeat: Int?, completed: Int? = nil) {
             self.title = title
             self.date = date
             self.repeat = `repeat`
+            self.completed = completed
         }
 
         /// Reconoce el encabezado (en español o inglés); `nil` si la primera fila no parece encabezado.
@@ -123,9 +128,11 @@ enum ReminderCSVImporter {
                   let title = find(["recordatorio", "reminder", "titulo", "title", "nombre", "name", "tarea", "task"],
                                    excluding: [date])
             else { return nil }
+            let repeatColumn = find(["repet", "repeat", "recurren", "frecuencia"], excluding: [title, date])
             self.title = title
             self.date = date
-            self.repeat = find(["repet", "repeat", "recurren", "frecuencia"], excluding: [title, date])
+            self.repeat = repeatColumn
+            self.completed = find(["complet", "hecho", "done"], excluding: Set([title, date] + (repeatColumn.map { [$0] } ?? [])))
         }
     }
 

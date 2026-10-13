@@ -41,6 +41,10 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
 - **Importar CSV** (menú ⋯ → *Importar CSV…*) con las columnas `"Recordatorio","Fecha límite","Repetir"` de Due.
   Muestra una vista previa con avisos, omite duplicados y puede pasar los repetitivos vencidos a su próxima fecha.
   También acepta encabezados en inglés, punto y coma como separador y archivos en UTF-8, UTF-16 o Windows-1252.
+- **Exportar CSV** (menú ⋯ → *Exportar CSV…*) guarda todos los recordatorios en un archivo que *Importar CSV…*
+  vuelve a leer: las mismas columnas de Due (fecha en ISO 8601, repetición con el mismo resumen que muestra la app)
+  más `"Completado"` con la fecha en que se completó, para que los completados no vuelvan como pendientes.
+  Va en UTF-8 con BOM para abrirse bien en Excel o Numbers.
 
 ## Cómo funciona por dentro
 
