@@ -24,6 +24,7 @@ struct SettingsView: View {
                 followUpSection
                 snoozeSection
                 gridSection
+                listSection
                 permissionSection
             }
             .navigationTitle("Configuración")
@@ -180,6 +181,19 @@ struct SettingsView: View {
             "Si el recordatorio ya venció, +10 min, +1 h, etc. suman a su fecha límite, aunque ya haya pasado."
         case .now:
             "Si el recordatorio ya venció, +10 min, +1 h, etc. suman desde ahora, como al posponer. Restar y fijar la hora siempre parten de la fecha límite."
+        }
+    }
+
+    private var listSection: some View {
+        Section {
+            Picker("Completar deslizando", selection: settings.swipeCompleteDirection) {
+                Text("De derecha a izquierda").tag(SwipeCompleteDirection.rightToLeft)
+                Text("De izquierda a derecha").tag(SwipeCompleteDirection.leftToRight)
+            }
+        } header: {
+            Text("Lista")
+        } footer: {
+            Text("Deslizar una fila en el sentido contrario muestra «Eliminar» y «Posponer».")
         }
     }
 

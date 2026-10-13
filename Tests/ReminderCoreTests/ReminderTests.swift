@@ -266,6 +266,16 @@ struct AppSettingsTests {
         #expect(AlarmSound.allCases.compactMap(\.fileName).count == AlarmSound.allCases.count - 1)
     }
 
+    @Test func swipeCompleteDirectionDefaultsToRightToLeftAndRoundTrips() throws {
+        #expect(AppSettings.default.swipeCompleteDirection == .rightToLeft)
+        let legacy = try JSONDecoder().decode(AppSettings.self, from: Data(#"{"stopAction":"snooze"}"#.utf8))
+        #expect(legacy.swipeCompleteDirection == .rightToLeft)
+        var settings = AppSettings.default
+        settings.swipeCompleteDirection = .leftToRight
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+        #expect(decoded.swipeCompleteDirection == .leftToRight)
+    }
+
     @Test func sortedSnoozeOptionsRemovesDuplicates() {
         var settings = AppSettings.default
         settings.snoozeOptions = [.hours(1), .minutes(5), .hours(1), .minutes(1)]

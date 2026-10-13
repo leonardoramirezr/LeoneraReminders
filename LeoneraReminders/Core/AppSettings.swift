@@ -107,6 +107,16 @@ extension QuickAdjustGrid.Cell {
     }
 }
 
+/// Hacia dónde se desliza una fila de la lista para completarla; el lado contrario muestra eliminar y posponer.
+enum SwipeCompleteDirection: String, Codable, CaseIterable, Sendable, Identifiable {
+    /// De derecha a izquierda (acciones del borde final).
+    case rightToLeft
+    /// De izquierda a derecha (acciones del borde inicial).
+    case leftToRight
+
+    var id: String { rawValue }
+}
+
 /// Repetir la alarma si no se atiende: vuelve a sonar cada `interval`, hasta `count` veces.
 struct FollowUpSettings: Codable, Hashable, Sendable {
     var isEnabled: Bool
@@ -175,6 +185,8 @@ struct AppSettings: Codable, Hashable, Sendable {
     /// `true`: alarmas de AlarmKit, que suenan aunque el iPhone esté en silencio o en Concentración.
     /// `false`: notificaciones, que respetan el modo silencio (sólo vibran).
     var ignoresSilentMode = true
+    /// Hacia dónde se desliza una fila para completarla.
+    var swipeCompleteDirection: SwipeCompleteDirection = .rightToLeft
 
     static let defaultSnoozeOptions: [TimeAmount] = [
         .minutes(1), .minutes(5), .minutes(10), .minutes(20), .minutes(40), .minutes(60), .hours(2), .hours(3),
@@ -189,7 +201,8 @@ struct AppSettings: Codable, Hashable, Sendable {
         overdueAdditionBase: .dueDate,
         followUp: .default,
         sound: .bell,
-        ignoresSilentMode: true
+        ignoresSilentMode: true,
+        swipeCompleteDirection: .rightToLeft
     )
 
     /// Opciones ordenadas y sin repetir.
@@ -207,6 +220,7 @@ struct AppSettings: Codable, Hashable, Sendable {
 extension AppSettings {
     private enum CodingKeys: String, CodingKey {
         case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid, overdueAdditionBase, followUp, sound, ignoresSilentMode
+        case swipeCompleteDirection
     }
 
     init(from decoder: any Decoder) throws {
@@ -221,7 +235,9 @@ extension AppSettings {
             overdueAdditionBase: (try? c.decodeIfPresent(OverdueAdditionBase.self, forKey: .overdueAdditionBase)) ?? fallback.overdueAdditionBase,
             followUp: (try? c.decodeIfPresent(FollowUpSettings.self, forKey: .followUp)) ?? fallback.followUp,
             sound: (try? c.decodeIfPresent(AlarmSound.self, forKey: .sound)) ?? fallback.sound,
-            ignoresSilentMode: (try? c.decodeIfPresent(Bool.self, forKey: .ignoresSilentMode)) ?? fallback.ignoresSilentMode
+            ignoresSilentMode: (try? c.decodeIfPresent(Bool.self, forKey: .ignoresSilentMode)) ?? fallback.ignoresSilentMode,
+            swipeCompleteDirection: (try? c.decodeIfPresent(SwipeCompleteDirection.self, forKey: .swipeCompleteDirection))
+                ?? fallback.swipeCompleteDirection
         )
     }
 }
