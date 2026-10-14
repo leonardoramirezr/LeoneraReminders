@@ -1,0 +1,274 @@
+import SwiftUI
+
+/// Lo que el modelo propuso y de dónde salió.
+struct ReminderReview: Identifiable, Hashable {
+    let id = UUID()
+    var drafts: [ReminderExtraction.Draft]
+    /// Texto que se mandó al modelo: el dictado (ya corregido), o las indicaciones de las fotos.
+    var sourceText: String
+    var photoCount = 0
+}
+
+/// Revisión antes de guardar: todos los recordatorios en una sola lista, cada uno con su título, fecha y repetición
+/// editables ahí mismo, para revisarlos y corregirlos sólo desplazándose.
+struct ReminderReviewView: View {
+    let review: ReminderReview
+    let onSave: ([Reminder]) -> Void
+
+    @State private var drafts: [ReminderExtraction.Draft]
+
+    init(review: ReminderReview, onSave: @escaping ([Reminder]) -> Void) {
+        self.review = review
+        self.onSave = onSave
+        _drafts = State(initialValue: review.drafts)
+    }
+
+    private var missingTitles: Bool {
+        drafts.contains { $0.reminder.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var body: some View {
+        TimelineView(.everyMinute) { context in
+            Form {
+                sourceSection
+                if drafts.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "No se encontraron recordatorios",
+                            systemImage: "questionmark.bubble",
+                            description: Text("Vuelve para cambiar el texto o agrega uno a mano.")
+                        )
+                    }
+                }
+                ForEach($drafts) { $draft in
+                    Section {
+                        ReminderDraftEditor(draft: $draft, now: context.date)
+                    } header: {
+                        header(for: draft)
+                    }
+                }
+                Section {
+                    Button {
+                        withAnimation {
+                            drafts.append(ReminderExtraction.Draft(reminder: Reminder(title: "", dueDate: Reminder.defaultDueDate())))
+                        }
+                    } label: {
+                        Label("Agregar otro recordatorio", systemImage: "plus")
+                    }
+                } footer: {
+                    if missingTitles {
+                        Text("Cada recordatorio necesita un título; escríbelo o quita el recordatorio.")
+                    }
+                }
+            }
+        }
+        .navigationTitle(drafts.count > 1 ? "Revisa \(drafts.count) recordatorios" : "Revisa el recordatorio")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Guardar") { save() }
+                    .disabled(drafts.isEmpty || missingTitles)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sourceSection: some View {
+        let text = review.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty || review.photoCount > 0 {
+            Section {
+                if review.photoCount > 0 {
+                    Label(review.photoCount == 1 ? "1 foto" : "\(review.photoCount) fotos", systemImage: "photo")
+                        .foregroundStyle(.secondary)
+                }
+                if !text.isEmpty {
+                    Text(text)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Lo que se envió")
+            } footer: {
+                Text("Para cambiarlo, vuelve atrás y procésalo de nuevo.")
+            }
+        }
+    }
+
+    private func header(for draft: ReminderExtraction.Draft) -> some View {
+        let index = (drafts.firstIndex { $0.id == draft.id } ?? 0) + 1
+        return HStack {
+            Text(drafts.count > 1 ? "Recordatorio \(index) de \(drafts.count)" : "Recordatorio")
+            Spacer()
+            Button(role: .destructive) {
+                withAnimation { drafts.removeAll { $0.id == draft.id } }
+            } label: {
+                Label("Quitar", systemImage: "trash")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Quitar el recordatorio \(index)")
+        }
+    }
+
+    private func save() {
+        let now = Date()
+        onSave(drafts.map { draft in
+            var reminder = draft.reminder
+            reminder.title = reminder.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            reminder.createdAt = now
+            return reminder
+        })
+    }
+}
+
+/// Versión corta del editor de un recordatorio: título, fecha límite y repetición, todo a la vista.
+struct ReminderDraftEditor: View {
+    @Binding var draft: ReminderExtraction.Draft
+    let now: Date
+
+    private var isPast: Bool { draft.reminder.dueDate <= now }
+
+    var body: some View {
+        TextField("Título", text: $draft.reminder.title, axis: .vertical)
+            .font(.headline)
+
+        DatePicker(selection: dueDate) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(DateText.relative(draft.reminder.dueDate, now: now))
+                    .foregroundStyle(isPast ? Color.red : Color.primary)
+                if isPast {
+                    Text("Ya pasó: sonará en cuanto lo guardes")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+
+        CompactRepeatEditor(rule: repeatRule, dueDate: draft.reminder.dueDate)
+
+        ForEach(draft.notes, id: \.self) { note in
+            Label(note.message, systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    /// En un recordatorio nuevo la repetición suena a la misma hora que la fecha límite, así que la sigue.
+    private var dueDate: Binding<Date> {
+        Binding(
+            get: { draft.reminder.dueDate },
+            set: { date in
+                draft.reminder.reschedule(to: date)
+                draft.reminder.repeatRule?.time = TimeOfDay(of: date)
+                draft.notes.removeAll(where: \.isAboutDate)
+            }
+        )
+    }
+
+    /// Al cambiar la repetición, la fecha pasa a su primera ocurrencia (p. ej. al elegir otro día de la semana).
+    private var repeatRule: Binding<RepeatRule?> {
+        Binding(
+            get: { draft.reminder.repeatRule },
+            set: { rule in
+                draft.reminder.repeatRule = rule
+                draft.reminder.alignDueDateToRepeatRule()
+                draft.notes.removeAll { !$0.isAboutDate }
+            }
+        )
+    }
+}
+
+/// Repetición editable en línea (sin abrir otra pantalla): frecuencia, cada cuánto y, según el caso,
+/// días de la semana, día del mes o fecha del año. La hora es la de la fecha límite.
+struct CompactRepeatEditor: View {
+    @Binding var rule: RepeatRule?
+    let dueDate: Date
+
+    var body: some View {
+        Picker(selection: frequency) {
+            Text("Nunca").tag(RepeatRule.Frequency?.none)
+            ForEach(RepeatRule.Frequency.allCases) { frequency in
+                Text(frequency.label).tag(RepeatRule.Frequency?.some(frequency))
+            }
+        } label: {
+            Label("Repetir", systemImage: "repeat")
+        }
+        .pickerStyle(.menu)
+
+        if let current = rule {
+            Stepper(value: field(\.interval), in: 1...99) {
+                Text("Cada \(current.interval) \(current.unitName(for: current.interval))")
+            }
+            details(for: current)
+            Text(current.summary())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func details(for current: RepeatRule) -> some View {
+        switch current.frequency {
+        case .weekly:
+            WeekdayPicker(selection: field(\.weekdays))
+                .padding(.vertical, 4)
+        case .monthly:
+            Picker("Día del mes", selection: monthDay) {
+                ForEach(1...31, id: \.self) { day in
+                    Text("Día \(day)").tag(day)
+                }
+                Text("Último día").tag(0)
+            }
+            .pickerStyle(.menu)
+        case .yearly:
+            Picker("Mes", selection: field(\.month)) {
+                ForEach(1...12, id: \.self) { month in
+                    Text(SpanishNames.months[month].capitalized).tag(month)
+                }
+            }
+            .pickerStyle(.menu)
+            Picker("Día", selection: field(\.dayOfMonth)) {
+                ForEach(1...RepeatRule.daysIn(year: 2028, month: current.month, calendar: .current), id: \.self) { day in
+                    Text("\(day)").tag(day)
+                }
+            }
+            .pickerStyle(.menu)
+        case .hourly, .daily:
+            EmptyView()
+        }
+    }
+
+    /// Cambiar de frecuencia toma los días de la fecha límite (y conserva cada cuánto).
+    private var frequency: Binding<RepeatRule.Frequency?> {
+        Binding(
+            get: { rule?.frequency },
+            set: { frequency in
+                guard let frequency else {
+                    rule = nil
+                    return
+                }
+                rule = RepeatRule.matching(dueDate, frequency: frequency, interval: rule?.interval ?? 1)
+            }
+        )
+    }
+
+    /// Día del mes, con 0 = último día.
+    private var monthDay: Binding<Int> {
+        Binding(
+            get: { (rule?.lastDayOfMonth ?? false) ? 0 : (rule?.dayOfMonth ?? 1) },
+            set: { day in
+                guard var updated = rule else { return }
+                updated.lastDayOfMonth = day == 0
+                updated.dayOfMonth = day == 0 ? 31 : day
+                rule = updated
+            }
+        )
+    }
+
+    private func field<Value>(_ keyPath: WritableKeyPath<RepeatRule, Value>) -> Binding<Value> {
+        Binding(
+            get: { (rule ?? RepeatRule.matching(dueDate, frequency: .daily))[keyPath: keyPath] },
+            set: { rule?[keyPath: keyPath] = $0 }
+        )
+    }
+}

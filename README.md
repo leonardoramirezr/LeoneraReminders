@@ -1,6 +1,6 @@
 # LeoneraReminders
 
-App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que cada recordatorio suene como una alarma (aunque el teléfono esté en silencio o en un modo de concentración). No usa dependencias externas: sólo frameworks de Apple (SwiftUI, AlarmKit, AppIntents, Observation).
+App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que cada recordatorio suene como una alarma (aunque el teléfono esté en silencio o en un modo de concentración). No usa dependencias externas: sólo frameworks de Apple (SwiftUI, AlarmKit, AppIntents, Observation) y, para crear recordatorios con la voz o con fotos, la API de [Groq](https://console.groq.com).
 
 ## Requisitos
 
@@ -12,6 +12,24 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
 ## Qué hace
 
 - **Recordatorio** = título + fecha límite + repetición opcional.
+- **Tres formas de crear**, con botones del mismo tamaño abajo de la lista: **Manual** (el editor de siempre),
+  **Voz** y **Foto**. Las dos últimas usan Groq y terminan en la misma pantalla de revisión:
+  - **Voz**: al tocarla empieza a grabar (al principio sólo se habla, no se escribe). Al detener, Whisper la
+    convierte en texto; ese texto ya se puede corregir (o *Dictar más*) antes de tocar *Crear recordatorios*.
+    En una sola nota caben varios recordatorios («mañana a las 9 llamar al dentista y todos los lunes sacar la basura»).
+  - **Foto**: hasta 3 fotos de la cámara o de Fotos (notas, listas, citas, recibos, capturas de pantalla) y, si se
+    quiere, indicaciones escritas o dictadas («sólo lo del viernes», «avísame un día antes»).
+  - **Revisión**: todos los recordatorios propuestos en una sola lista, cada uno con su título, fecha y hora y
+    repetición (frecuencia, cada cuánto, días de la semana o del mes) editables ahí mismo, así que se revisan y
+    corrigen sólo desplazándose. Se pueden quitar o agregar más; los que ya pasaron se marcan en rojo. Al guardar
+    aparece «N recordatorios agregados» con *Deshacer*.
+- **Asistente** (*Configuración → Asistente*): la clave de API de Groq (se guarda en el llavero del iPhone), el
+  modelo de **voz a texto** (`whisper-large-v3-turbo` por defecto), el de **texto a recordatorios**
+  (`openai/gpt-oss-120b`) y el de **fotos** (`qwen/qwen3.8-27b`, que acepta imágenes), y el idioma del dictado.
+  Groq cambia sus modelos seguido, así que *Actualizar lista de modelos* trae los de la cuenta y también se puede
+  escribir cualquier id. El modelo responde en JSON (`{"reminders":[{"title","due","repeat"}]}`) con la fecha de hoy
+  y los próximos 14 días ya calculados en las instrucciones; la app lo lee de forma tolerante y lo convierte en
+  recordatorios con la misma regla de repetición que usa el resto de la app.
 - **Repeticiones** (basadas en las del CSV de Due): cada N horas, diario/cada N días, semanal en uno o varios días
   (incluye entre semana y fines de semana), mensual en un día o el último día del mes (cada N meses) y anual (cada N años).
   La regla guarda su propia hora y día, así que mover o posponer una ocurrencia no cambia la regla.
@@ -59,10 +77,12 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
 ```
 LeoneraReminders/
   App/        Punto de entrada
-  Core/       Modelo y lógica sin interfaz (repeticiones, CSV, matriz, configuración) — probado con `swift test`
+  Core/       Modelo y lógica sin interfaz (repeticiones, CSV, matriz, configuración, instrucciones y lectura de
+              las respuestas de Groq) — probado con `swift test`
   Alarms/     AlarmKit: sincronización, metadatos e intents de los botones
+  Assistant/  Groq (peticiones), clave en el llavero, grabación del dictado y fotos
   Stores/     Persistencia (JSON en Application Support y UserDefaults)
-  Views/      SwiftUI
+  Views/      SwiftUI (Views/Assistant: barra para crear, voz, fotos, revisión y configuración del asistente)
 Config/Info.plist
 Tests/ReminderCoreTests/
 scripts/      Builds firmados: API de App Store Connect (asc.py) y GitHub Pages (publish-pages.sh, pages.py)

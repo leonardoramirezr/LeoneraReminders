@@ -4,5 +4,9 @@
 <dict>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Leonera usa alarmas para que cada recordatorio suene a su hora, aunque el teléfono esté en silencio o en un modo de concentración.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Leonera usa el micrófono para que dictes recordatorios; el audio se envía a Groq para convertirlo en texto.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Leonera usa la cámara para crear recordatorios a partir de una foto; la foto se envía a Groq para leerla.</string>
 </dict>
 </plist>

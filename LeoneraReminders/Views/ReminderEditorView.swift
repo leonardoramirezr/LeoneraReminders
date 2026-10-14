@@ -12,7 +12,7 @@ struct ReminderEditorView: View {
 
     init(target: EditorTarget, existing: Reminder?) {
         self.target = target
-        _draft = State(initialValue: existing ?? Reminder(title: "", dueDate: Self.defaultDueDate()))
+        _draft = State(initialValue: existing ?? Reminder(title: "", dueDate: Reminder.defaultDueDate()))
     }
 
     private var isNew: Bool { target.reminderID == nil }
@@ -111,11 +111,5 @@ struct ReminderEditorView: View {
             store.update(reminder)
         }
         dismiss()
-    }
-
-    /// La siguiente hora en punto.
-    static func defaultDueDate(now: Date = Date(), calendar: Calendar = .current) -> Date {
-        let hourStart = calendar.dateInterval(of: .hour, for: now)?.start ?? now
-        return calendar.date(byAdding: .hour, value: 1, to: hourStart) ?? now.addingTimeInterval(3_600)
     }
 }
