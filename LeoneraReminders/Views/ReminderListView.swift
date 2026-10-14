@@ -29,7 +29,6 @@ struct ReminderListView: View {
                 list(now: context.date)
             }
             .navigationTitle("Recordatorios")
-            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Buscar")
             .toolbar { toolbar }
             .overlay {
                 if store.reminders.isEmpty {
@@ -48,8 +47,14 @@ struct ReminderListView: View {
                         UndoToast(change: change)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    // Mientras se busca, el teclado y el campo de búsqueda ocupan su lugar.
-                    if !isSearching {
+                    // Mientras se busca, el campo de búsqueda ocupa el lugar de la barra.
+                    if isSearching {
+                        SearchBar(text: $searchText) {
+                            searchText = ""
+                            isSearching = false
+                        }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else {
                         AddReminderBar(
                             onSearch: { isSearching = true },
                             onPhoto: { assistant = .photo },

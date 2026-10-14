@@ -12,7 +12,7 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
 ## Qué hace
 
 - **Recordatorio** = título + fecha límite + repetición opcional.
-- **Barra flotante abajo**, al estilo de Instagram (una cápsula de vidrio con sólo íconos): **Buscar** y las
+- **Barra flotante abajo**, al estilo de Instagram (una cápsula de vidrio con sólo íconos): **Buscar** (la cambia por el campo de búsqueda) y las
   tres formas de crear: **Foto**, **Voz** y **Manual** (el editor de siempre). Foto y Voz usan Groq y terminan
   en la misma pantalla de revisión:
   - **Voz**: al tocarla empieza a grabar (al principio sólo se habla, no se escribe). Al detener, Whisper la

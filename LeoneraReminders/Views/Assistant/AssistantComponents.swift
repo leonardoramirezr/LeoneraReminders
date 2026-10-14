@@ -10,7 +10,7 @@ enum AssistantSource: String, Identifiable {
 }
 
 /// Barra flotante de abajo, al estilo de la de Instagram: una cápsula de vidrio con sólo íconos. De izquierda a
-/// derecha: buscar, y las tres formas de crear un recordatorio (con una foto, con la voz o a mano).
+/// derecha: buscar (abre `SearchBar` en su lugar), y las tres formas de crear un recordatorio (con una foto, con la voz o a mano).
 struct AddReminderBar: View {
     let onSearch: () -> Void
     let onPhoto: () -> Void
@@ -42,6 +42,41 @@ struct AddReminderBar: View {
         }
         .buttonStyle(BarButtonStyle())
         .accessibilityLabel(accessibility)
+    }
+}
+
+/// Campo de búsqueda con la misma cápsula de vidrio que `AddReminderBar`; reemplaza al `searchable` del sistema,
+/// que en iOS 26 dejaba otra barra de búsqueda abajo.
+struct SearchBar: View {
+    @Binding var text: String
+    let onClose: () -> Void
+
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Buscar", text: $text)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .accessibilityLabel("Cerrar búsqueda")
+        }
+        .font(.system(size: 18))
+        .padding(.horizontal, 20)
+        .frame(height: 62)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .padding(.horizontal, 22)
+        .padding(.bottom, 4)
+        .onAppear { focused = true }
     }
 }
 
