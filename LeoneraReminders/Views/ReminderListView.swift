@@ -20,6 +20,7 @@ struct ReminderListView: View {
     @State private var exportError: String?
     @State private var showCompleted = false
     @State private var searchText = ""
+    @State private var isSearching = false
     @State private var completedTrigger = 0
 
     var body: some View {
@@ -28,7 +29,7 @@ struct ReminderListView: View {
                 list(now: context.date)
             }
             .navigationTitle("Recordatorios")
-            .searchable(text: $searchText, prompt: "Buscar")
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Buscar")
             .toolbar { toolbar }
             .overlay {
                 if store.reminders.isEmpty {
@@ -47,15 +48,20 @@ struct ReminderListView: View {
                         UndoToast(change: change)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    AddReminderBar(
-                        onManual: { editing = .new },
-                        onVoice: { assistant = .voice },
-                        onPhoto: { assistant = .photo }
-                    )
-                    .background(.bar)
+                    // Mientras se busca, el teclado y el campo de búsqueda ocupan su lugar.
+                    if !isSearching {
+                        AddReminderBar(
+                            onSearch: { isSearching = true },
+                            onPhoto: { assistant = .photo },
+                            onVoice: { assistant = .voice },
+                            onManual: { editing = .new }
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
             }
             .animation(.snappy, value: store.undoable?.id)
+            .animation(.snappy, value: isSearching)
         }
         .sensoryFeedback(.success, trigger: completedTrigger)
         .sheet(item: $editing) { target in

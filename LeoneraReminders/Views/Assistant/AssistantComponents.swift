@@ -9,37 +9,52 @@ enum AssistantSource: String, Identifiable {
     var id: String { rawValue }
 }
 
-/// Las tres formas de crear un recordatorio, con el mismo peso visual: a mano, con la voz o con una foto.
+/// Barra flotante de abajo, al estilo de la de Instagram: una cápsula de vidrio con sólo íconos. De izquierda a
+/// derecha: buscar, y las tres formas de crear un recordatorio (con una foto, con la voz o a mano).
 struct AddReminderBar: View {
-    let onManual: () -> Void
-    let onVoice: () -> Void
+    let onSearch: () -> Void
     let onPhoto: () -> Void
+    let onVoice: () -> Void
+    let onManual: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            button("Manual", systemImage: "square.and.pencil", accessibility: "Nuevo recordatorio a mano", action: onManual)
+        HStack(spacing: 0) {
+            button(systemImage: "magnifyingglass", accessibility: "Buscar", action: onSearch)
+                .keyboardShortcut("f", modifiers: .command)
+            button(systemImage: "camera", accessibility: "Nuevo recordatorio con una foto", action: onPhoto)
+            button(systemImage: "mic", accessibility: "Nuevo recordatorio con la voz", action: onVoice)
+            button(systemImage: "square.and.pencil", accessibility: "Nuevo recordatorio a mano", action: onManual)
                 .keyboardShortcut("n", modifiers: .command)
-            button("Voz", systemImage: "mic.fill", accessibility: "Nuevo recordatorio con la voz", action: onVoice)
-            button("Foto", systemImage: "camera.fill", accessibility: "Nuevo recordatorio con una foto", action: onPhoto)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(5)
+        .frame(height: 62)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .padding(.horizontal, 22)
+        .padding(.bottom, 4)
     }
 
-    private func button(_ title: String, systemImage: String, accessibility: String, action: @escaping () -> Void) -> some View {
+    private func button(systemImage: String, accessibility: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: systemImage)
-                    .font(.title3.weight(.semibold))
-                Text(title)
-                    .font(.footnote.weight(.semibold))
-            }
-            .frame(maxWidth: .infinity, minHeight: 48)
+            Image(systemName: systemImage)
+                .font(.system(size: 24, weight: .medium))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(.capsule)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .tint(.brand)
+        .buttonStyle(BarButtonStyle())
         .accessibilityLabel(accessibility)
+    }
+}
+
+/// Ícono sin borde que, al tocarlo, se marca con la cápsula gris de la pestaña activa de Instagram.
+private struct BarButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.primary)
+            .background {
+                Capsule()
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.12 : 0))
+            }
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
