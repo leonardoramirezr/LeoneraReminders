@@ -43,6 +43,20 @@ final class ReminderStore {
         didChange()
     }
 
+    /// Agrega varios a la vez (los que se crearon con voz o fotos); «Deshacer» los quita juntos.
+    /// Los que ya vencieron suenan en el siguiente minuto.
+    func add(contentsOf added: [Reminder]) {
+        guard !added.isEmpty else { return }
+        undoable = UndoableChange(
+            message: added.count == 1 ? "Recordatorio agregado" : "\(added.count) recordatorios agregados",
+            previous: [],
+            added: Set(added.map(\.id))
+        )
+        reminders.append(contentsOf: added)
+        retryOverdue()
+        didChange()
+    }
+
     /// Reemplaza el recordatorio con el mismo id (conserva la alarma registrada, que sólo cambia la sincronización).
     func update(_ reminder: Reminder) {
         guard let index = reminders.firstIndex(where: { $0.id == reminder.id }) else { return }
@@ -97,17 +111,21 @@ final class ReminderStore {
 
     // MARK: - Deshacer
 
-    /// Copia de los recordatorios tal como estaban antes de un cambio, con su posición en la lista.
+    /// Copia de los recordatorios tal como estaban antes de un cambio, con su posición en la lista,
+    /// y los que el cambio agregó.
     struct UndoableChange: Identifiable {
         let id = UUID()
         let message: String
         fileprivate let previous: [(index: Int, reminder: Reminder)]
+        fileprivate var added: Set<UUID> = []
     }
 
     /// Devuelve los recordatorios afectados a como estaban. Los cambios hechos a otros recordatorios después se respetan.
     func undo() {
         guard let change = undoable else { return }
         undoable = nil
+        // Se cancelan sus alarmas en la siguiente sincronización.
+        reminders.removeAll { change.added.contains($0.id) }
         for (index, old) in change.previous {
             var restored = old
             if let current = reminders.firstIndex(where: { $0.id == old.id }) {

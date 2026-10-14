@@ -4,6 +4,7 @@ import UIKit
 struct SettingsView: View {
     @Environment(SettingsStore.self) private var settingsStore
     @Environment(AlarmSyncService.self) private var alarms
+    @Environment(GroqKeyStore.self) private var groqKey
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -19,6 +20,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                assistantSection
                 soundSection
                 alarmSection
                 followUpSection
@@ -51,6 +53,24 @@ struct SettingsView: View {
     }
 
     // MARK: - Secciones
+
+    private var assistantSection: some View {
+        Section {
+            NavigationLink {
+                AssistantSettingsView()
+            } label: {
+                LabeledContent {
+                    Text(groqKey.hasKey ? "Configurado" : "Sin clave")
+                } label: {
+                    Label("Voz y fotos con Groq", systemImage: "sparkles")
+                }
+            }
+        } header: {
+            Text("Asistente")
+        } footer: {
+            Text("Crea recordatorios dictando o con una foto: Groq convierte la voz en texto y un modelo de lenguaje la convierte en recordatorios, que revisas antes de guardar.")
+        }
+    }
 
     private var alarmSection: some View {
         Section {

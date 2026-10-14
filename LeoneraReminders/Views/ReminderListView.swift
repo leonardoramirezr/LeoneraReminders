@@ -9,6 +9,7 @@ struct ReminderListView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var editing: EditorTarget?
+    @State private var assistant: AssistantSource?
     @State private var acting: ReminderSheetID?
     @State private var showSettings = false
     @State private var showImporter = false
@@ -34,16 +35,24 @@ struct ReminderListView: View {
                     ContentUnavailableView {
                         Label("Sin recordatorios", systemImage: "alarm")
                     } description: {
-                        Text("Crea uno con + o importa un CSV exportado de Due.")
+                        Text("Créalo a mano, con la voz o con una foto, o importa un CSV exportado de Due.")
                     } actions: {
                         Button("Importar CSV…") { showImporter = true }
                     }
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if let change = store.undoable {
-                    UndoToast(change: change)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                VStack(spacing: 0) {
+                    if let change = store.undoable {
+                        UndoToast(change: change)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    AddReminderBar(
+                        onManual: { editing = .new },
+                        onVoice: { assistant = .voice },
+                        onPhoto: { assistant = .photo }
+                    )
+                    .background(.bar)
                 }
             }
             .animation(.snappy, value: store.undoable?.id)
@@ -51,6 +60,12 @@ struct ReminderListView: View {
         .sensoryFeedback(.success, trigger: completedTrigger)
         .sheet(item: $editing) { target in
             ReminderEditorView(target: target, existing: target.reminderID.flatMap(store.reminder(id:)))
+        }
+        .sheet(item: $assistant) { source in
+            switch source {
+            case .voice: VoiceCaptureView()
+            case .photo: PhotoCaptureView()
+            }
         }
         .sheet(item: $acting) { sheet in
             ReminderActionSheet(reminderID: sheet.id) {
@@ -102,6 +117,7 @@ struct ReminderListView: View {
             guard let id else { return }
             store.pendingOptionsReminderID = nil
             editing = nil
+            assistant = nil
             acting = ReminderSheetID(id: id)
         }
     }
@@ -298,11 +314,6 @@ struct ReminderListView: View {
                 }
             } label: {
                 Label("Más", systemImage: "ellipsis.circle")
-            }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button { editing = .new } label: {
-                Label("Nuevo recordatorio", systemImage: "plus")
             }
         }
     }

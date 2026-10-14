@@ -187,6 +187,8 @@ struct AppSettings: Codable, Hashable, Sendable {
     var ignoresSilentMode = true
     /// Hacia dónde se desliza una fila para completarla.
     var swipeCompleteDirection: SwipeCompleteDirection = .rightToLeft
+    /// Modelos de Groq para crear recordatorios con voz, texto o fotos.
+    var assistant: AssistantSettings = .default
 
     static let defaultSnoozeOptions: [TimeAmount] = [
         .minutes(1), .minutes(5), .minutes(10), .minutes(20), .minutes(40), .minutes(60), .hours(2), .hours(3),
@@ -202,7 +204,8 @@ struct AppSettings: Codable, Hashable, Sendable {
         followUp: .default,
         sound: .bell,
         ignoresSilentMode: true,
-        swipeCompleteDirection: .rightToLeft
+        swipeCompleteDirection: .rightToLeft,
+        assistant: .default
     )
 
     /// Opciones ordenadas y sin repetir.
@@ -220,7 +223,7 @@ struct AppSettings: Codable, Hashable, Sendable {
 extension AppSettings {
     private enum CodingKeys: String, CodingKey {
         case snoozeOptions, defaultSnooze, stopAction, secondaryAction, quickAdjustGrid, overdueAdditionBase, followUp, sound, ignoresSilentMode
-        case swipeCompleteDirection
+        case swipeCompleteDirection, assistant
     }
 
     init(from decoder: any Decoder) throws {
@@ -237,7 +240,8 @@ extension AppSettings {
             sound: (try? c.decodeIfPresent(AlarmSound.self, forKey: .sound)) ?? fallback.sound,
             ignoresSilentMode: (try? c.decodeIfPresent(Bool.self, forKey: .ignoresSilentMode)) ?? fallback.ignoresSilentMode,
             swipeCompleteDirection: (try? c.decodeIfPresent(SwipeCompleteDirection.self, forKey: .swipeCompleteDirection))
-                ?? fallback.swipeCompleteDirection
+                ?? fallback.swipeCompleteDirection,
+            assistant: (try? c.decodeIfPresent(AssistantSettings.self, forKey: .assistant)) ?? fallback.assistant
         )
     }
 }

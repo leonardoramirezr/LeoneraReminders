@@ -41,6 +41,12 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
 
     var isCompleted: Bool { completedAt != nil }
 
+    /// Fecha límite de un recordatorio nuevo: la siguiente hora en punto.
+    static func defaultDueDate(now: Date = Date(), calendar: Calendar = .current) -> Date {
+        let hourStart = calendar.dateInterval(of: .hour, for: now)?.start ?? now
+        return calendar.date(byAdding: .hour, value: 1, to: hourStart) ?? now.addingTimeInterval(3_600)
+    }
+
     func isOverdue(now: Date = Date()) -> Bool {
         !isCompleted && dueDate <= now
     }
@@ -101,6 +107,15 @@ struct Reminder: Identifiable, Codable, Hashable, Sendable {
         }
         retryFrom = nextMinute
         return true
+    }
+
+    /// Si la fecha límite no cae en la repetición (p. ej. un jueves con "todos los lunes"), la pasa a la primera
+    /// ocurrencia desde esa fecha. Se busca con intervalo 1: "cada 2 semanas los lunes" dicho un jueves empieza el
+    /// lunes siguiente, no dentro de dos semanas (y una fecha al inicio de su periodo se queda donde está).
+    mutating func alignDueDateToRepeatRule(calendar: Calendar = .current) {
+        guard var probe = repeatRule else { return }
+        probe.interval = 1
+        if let first = probe.firstOccurrence(onOrAfter: dueDate, calendar: calendar) { dueDate = first }
     }
 
     /// Para recordatorios repetitivos cuya fecha ya pasó: mueve la fecha a la siguiente ocurrencia futura.

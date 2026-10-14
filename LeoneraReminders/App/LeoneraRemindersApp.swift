@@ -5,6 +5,7 @@ struct LeoneraRemindersApp: App {
     @State private var store = ReminderStore.shared
     @State private var settings = SettingsStore.shared
     @State private var alarms = AlarmSyncService.shared
+    @State private var groqKey = GroqKeyStore.shared
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -17,6 +18,7 @@ struct LeoneraRemindersApp: App {
                 .environment(store)
                 .environment(settings)
                 .environment(alarms)
+                .environment(groqKey)
                 .tint(.brand)
                 .task { await alarms.start() }
                 .onChange(of: scenePhase, initial: true) { _, phase in
