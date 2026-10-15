@@ -179,21 +179,24 @@ struct ReminderListView: View {
     }
 
     private func row(_ reminder: Reminder, now: Date) -> some View {
-        ReminderRow(
-            reminder: reminder,
-            now: now,
-            isRinging: reminder.scheduledAlarms.contains { alarms.alertingAlarmIDs.contains($0.id) },
-            onToggle: {
-                // Completar siempre pide deslizar; reabrir un completado es inofensivo.
-                if reminder.isCompleted {
-                    store.markIncomplete(id: reminder.id)
-                } else {
-                    acting = ReminderSheetID(id: reminder.id)
+        // Un botón (y no `onTapGesture`) para abrir el editor: el toque no compite con el deslizamiento
+        // de la lista, así que la fila sigue al dedo desde el primer momento.
+        Button { editing = .edit(reminder.id) } label: {
+            ReminderRow(
+                reminder: reminder,
+                now: now,
+                isRinging: reminder.scheduledAlarms.contains { alarms.alertingAlarmIDs.contains($0.id) },
+                onToggle: {
+                    // Completar siempre pide deslizar; reabrir un completado es inofensivo.
+                    if reminder.isCompleted {
+                        store.markIncomplete(id: reminder.id)
+                    } else {
+                        acting = ReminderSheetID(id: reminder.id)
+                    }
                 }
-            }
-        )
-        .contentShape(Rectangle())
-        .onTapGesture { editing = .edit(reminder.id) }
+            )
+        }
+        .foregroundStyle(.primary)
         .swipeActions(edge: completeEdge) {
             if !reminder.isCompleted {
                 Button { complete(reminder) } label: {

@@ -176,12 +176,23 @@ final class ReminderStore {
         if changed { didChange() }
     }
 
-    /// Registra las alarmas programadas. No dispara otra sincronización.
-    func setScheduledAlarms(_ alarms: [ScheduledAlarm], for id: UUID) {
-        guard let index = reminders.firstIndex(where: { $0.id == id }),
-              reminders[index].scheduledAlarms != alarms
-        else { return }
-        reminders[index].scheduledAlarms = alarms
+    /// Registra las alarmas programadas de todos los recordatorios (los que no aparecen quedan sin alarmas).
+    /// No dispara otra sincronización.
+    ///
+    /// Se aplica de una vez (un solo cambio observado y un solo guardado) para no redibujar la lista
+    /// una vez por recordatorio mientras corre una animación.
+    func setScheduledAlarms(_ alarmsByReminder: [UUID: [ScheduledAlarm]]) {
+        var updated = reminders
+        var changed = false
+        for index in updated.indices {
+            let alarms = alarmsByReminder[updated[index].id] ?? []
+            if updated[index].scheduledAlarms != alarms {
+                updated[index].scheduledAlarms = alarms
+                changed = true
+            }
+        }
+        guard changed else { return }
+        reminders = updated
         save()
     }
 
@@ -212,16 +223,32 @@ final class ReminderStore {
         }
     }
 
+    /// Escribe en serie y fuera del hilo principal, para que guardar no trabe los gestos ni las animaciones.
+    private static let saveQueue = DispatchQueue(label: "LeoneraReminders.store.save", qos: .utility)
+
     private func save() {
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            let data = try encoder.encode(reminders)
-            try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-            lastError = nil
-        } catch {
-            lastError = "No se pudieron guardar los recordatorios."
-            logger.error("Error al guardar recordatorios: \(error.localizedDescription, privacy: .public)")
+        let snapshot = reminders
+        let fileURL = fileURL
+        let logger = logger
+        Self.saveQueue.async { [weak self] in
+            let failed: Bool
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                let data = try encoder.encode(snapshot)
+                try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                failed = false
+            } catch {
+                failed = true
+                logger.error("Error al guardar recordatorios: \(error.localizedDescription, privacy: .public)")
+            }
+            Task { @MainActor in self?.setSaveFailed(failed) }
         }
+    }
+
+    private func setSaveFailed(_ failed: Bool) {
+        let message = failed ? "No se pudieron guardar los recordatorios." : nil
+        // Sólo se asigna si cambia: cada asignación hace que la lista se vuelva a dibujar.
+        if lastError != message { lastError = message }
     }
 }
