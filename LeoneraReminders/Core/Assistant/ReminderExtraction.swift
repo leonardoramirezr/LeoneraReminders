@@ -85,6 +85,7 @@ enum ReminderExtraction {
           - "interval": cada cuántas unidades (2 = cada 2 horas, días, semanas, meses o años). Quincenal = "weekly" con interval 2.
           - "weekdays" (sólo weekly): monday, tuesday, wednesday, thursday, friday, saturday, sunday. Entre semana = monday a friday; fines de semana = saturday y sunday.
           - "day_of_month" (monthly y yearly): día del mes. "last_day_of_month": true para el último día de cada mes.
+          - "week_of_month" (monthly, con un solo día en "weekdays"): para "el primer lunes", "el último domingo", etc.: 1 a 4 = primero a cuarto; -1 = último, -2 = penúltimo, -3 = antepenúltimo. Si no, null.
           - "month" (yearly): mes del 1 al 12.
           - La hora de la repetición es la de "due", y "due" es la primera vez que toca según la repetición.
 
@@ -280,6 +281,7 @@ enum ReminderExtraction {
         var weekdays: [String]?
         var dayOfMonth: Int?
         var lastDayOfMonth: Bool?
+        var weekOfMonth: Int?
         var month: Int?
 
         init(from decoder: any Decoder) throws {
@@ -289,6 +291,7 @@ enum ReminderExtraction {
             weekdays = c.flexibleStrings("weekdays", "days", "days_of_week", "dias")
             dayOfMonth = c.flexibleInt("day_of_month", "dayOfMonth", "day", "monthday", "dia")
             lastDayOfMonth = c.flexibleBool("last_day_of_month", "lastDayOfMonth", "last_day")
+            weekOfMonth = c.flexibleInt("week_of_month", "weekOfMonth", "weekday_ordinal", "ordinal")
             month = c.flexibleInt("month", "mes")
         }
 
@@ -349,6 +352,12 @@ enum ReminderExtraction {
                 let days = !named.isEmpty ? named : parsed.weekdays ?? [due.weekday ?? 1]
                 return RepeatRule(frequency: .weekly, interval: interval, hour: hour, minute: minute, weekdays: days)
             case .monthly:
+                let named = (weekdays ?? []).compactMap(ReminderExtraction.weekday(from:))
+                if let ordinal = weekOfMonth, RepeatRule.weekdayOrdinals.contains(ordinal),
+                   let weekday = named.first ?? due.weekday {
+                    return RepeatRule(frequency: .monthly, interval: interval, hour: hour, minute: minute,
+                                      weekdayOrdinal: ordinal, ordinalWeekday: weekday)
+                }
                 let last = lastDayOfMonth == true
                 return RepeatRule(frequency: .monthly, interval: interval, hour: hour, minute: minute,
                                   dayOfMonth: last ? 31 : day ?? due.day ?? 1, lastDayOfMonth: last)

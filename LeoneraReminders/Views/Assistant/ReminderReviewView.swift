@@ -213,13 +213,8 @@ struct CompactRepeatEditor: View {
             WeekdayPicker(selection: field(\.weekdays))
                 .padding(.vertical, 4)
         case .monthly:
-            Picker("Día del mes", selection: monthDay) {
-                ForEach(1...31, id: \.self) { day in
-                    Text("Día \(day)").tag(day)
-                }
-                Text("Último día").tag(0)
-            }
-            .pickerStyle(.menu)
+            MonthlyRepeatFields(rule: nonOptionalRule, dueDate: dueDate)
+                .pickerStyle(.menu)
         case .yearly:
             Picker("Mes", selection: field(\.month)) {
                 ForEach(1...12, id: \.self) { month in
@@ -252,16 +247,10 @@ struct CompactRepeatEditor: View {
         )
     }
 
-    /// Día del mes, con 0 = último día.
-    private var monthDay: Binding<Int> {
+    private var nonOptionalRule: Binding<RepeatRule> {
         Binding(
-            get: { (rule?.lastDayOfMonth ?? false) ? 0 : (rule?.dayOfMonth ?? 1) },
-            set: { day in
-                guard var updated = rule else { return }
-                updated.lastDayOfMonth = day == 0
-                updated.dayOfMonth = day == 0 ? 31 : day
-                rule = updated
-            }
+            get: { rule ?? RepeatRule.matching(dueDate, frequency: .monthly) },
+            set: { rule = $0 }
         )
     }
 

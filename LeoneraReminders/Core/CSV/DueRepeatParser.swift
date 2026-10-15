@@ -80,6 +80,8 @@ enum DueRepeatParser {
         case adverb(RepeatRule.Frequency, interval: Int)
         case every
         case last
+        /// "penúltimo" (2) o "antepenúltimo" (3): posición contada desde el final.
+        case fromEnd(Int)
         case onTheHour
         case word(String)
     }
@@ -122,6 +124,7 @@ enum DueRepeatParser {
         if let adverb = adverbs[word] { return .adverb(adverb.0, interval: adverb.1) }
         if everyWords.contains(word) { return .every }
         if lastWords.contains(word) { return .last }
+        if let value = fromEndWords[word] { return .fromEnd(value) }
         if word == "punto" || word == "oclock" { return .onTheHour }
         return .word(word)
     }
@@ -156,6 +159,7 @@ enum DueRepeatParser {
         var ordinals: [Int] = []
         var freeNumbers: [Int] = []
         var hasLast = false
+        var fromEnd: Int?
         var onTheHour = false
         var adverb: (RepeatRule.Frequency, Int)?
         for (i, token) in tokens.enumerated() {
@@ -166,6 +170,7 @@ enum DueRepeatParser {
             case .ordinal(let n): ordinals.append(n)
             case .number(let n) where !consumed.contains(i): freeNumbers.append(n)
             case .last: hasLast = true
+            case .fromEnd(let n): fromEnd = fromEnd ?? n
             case .onTheHour: onTheHour = true
             case .adverb(let frequency, let n): adverb = adverb ?? (frequency, n)
             default: break
@@ -186,7 +191,15 @@ enum DueRepeatParser {
                        weekdays: weekdays.isEmpty ? [dueWeekday] : weekdays)
         }
         func monthly(_ n: Int) -> RepeatRule {
-            RepeatRule(frequency: .monthly, interval: n, hour: hour, minute: minute,
+            // "Último domingo de cada mes", "2do martes de cada mes", "penúltimo viernes de cada mes".
+            if weekdays.count == 1, let weekday = weekdays.first {
+                let ordinal = fromEnd.map { -$0 } ?? (hasLast ? -1 : ordinals.first { (1...4).contains($0) })
+                if let ordinal {
+                    return RepeatRule(frequency: .monthly, interval: n, hour: hour, minute: minute,
+                                      weekdayOrdinal: ordinal, ordinalWeekday: weekday)
+                }
+            }
+            return RepeatRule(frequency: .monthly, interval: n, hour: hour, minute: minute,
                        dayOfMonth: dayNumber ?? (hasLast ? 31 : dueDay), lastDayOfMonth: hasLast && dayNumber == nil)
         }
         func yearly(_ n: Int) -> RepeatRule {
@@ -242,7 +255,15 @@ enum DueRepeatParser {
         "otro": 2, "otra": 2, "other": 2,
     ]
 
-    static let ordinalWords: [String: Int] = ["primer": 1, "primero": 1, "primera": 1, "first": 1]
+    static let ordinalWords: [String: Int] = [
+        "primer": 1, "primero": 1, "primera": 1, "segundo": 2, "segunda": 2,
+        "tercer": 3, "tercero": 3, "tercera": 3, "cuarto": 4, "cuarta": 4,
+        "first": 1, "second": 2, "third": 3, "fourth": 4,
+    ]
+
+    static let fromEndWords: [String: Int] = [
+        "penultimo": 2, "penultima": 2, "penultimate": 2, "antepenultimo": 3, "antepenultima": 3, "antepenultimate": 3,
+    ]
 
     static let weekdayNames: [String: Int] = [
         "domingo": 1, "domingos": 1, "lunes": 2, "martes": 3, "miercoles": 4,

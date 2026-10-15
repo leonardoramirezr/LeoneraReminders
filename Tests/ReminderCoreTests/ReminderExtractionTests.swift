@@ -38,6 +38,20 @@ struct ReminderExtractionTests {
         #expect(drafts[3].reminder.dueDate == local(2027, 3, 8, 8))
     }
 
+    @Test func readsWeekdayOfMonth() throws {
+        let drafts = try parse("""
+        {"reminders":[
+          {"title":"Junta de vecinos","due":"2026-10-25T10:00",
+           "repeat":{"frequency":"monthly","weekdays":["sunday"],"week_of_month":-1}},
+          {"title":"Pagar club","due":"2026-11-03T09:00",
+           "repeat":{"frequency":"monthly","interval":2,"week_of_month":1}}
+        ]}
+        """)
+        #expect(drafts[0].reminder.repeatRule == RepeatRule(frequency: .monthly, hour: 10, weekdayOrdinal: -1, ordinalWeekday: 1))
+        // Sin día de la semana se toma el de "due" (martes).
+        #expect(drafts[1].reminder.repeatRule == RepeatRule(frequency: .monthly, interval: 2, hour: 9, weekdayOrdinal: 1, ordinalWeekday: 3))
+    }
+
     @Test func toleratesWrappersAndLooseTypes() throws {
         let drafts = try parse("""
         <think>El usuario quiere dos cosas…</think>

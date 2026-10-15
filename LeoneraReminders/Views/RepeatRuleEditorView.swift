@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Editor de la regla de repetición: nunca, cada N horas, días, semanas (con días), meses (día o último día) o años.
+/// Editor de la regla de repetición: nunca, cada N horas, días, semanas (con días), meses (un día, el último día o
+/// un día de la semana como "el último domingo") o años.
 struct RepeatRuleEditorView: View {
     @Binding var rule: RepeatRule?
     /// Fecha límite actual: de ella salen los valores iniciales y la vista previa.
@@ -63,12 +64,7 @@ struct RepeatRuleEditorView: View {
                 .padding(.vertical, 4)
             timePicker
         case .monthly:
-            Picker("Día del mes", selection: monthDay) {
-                ForEach(1...31, id: \.self) { day in
-                    Text("Día \(day)").tag(day)
-                }
-                Text("Último día").tag(0)
-            }
+            MonthlyRepeatFields(rule: nonOptionalRule, dueDate: dueDate)
             timePicker
         case .yearly:
             Picker("Mes", selection: field(\.month)) {
@@ -117,14 +113,10 @@ struct RepeatRuleEditorView: View {
         )
     }
 
-    /// Día del mes, con 0 = último día.
-    private var monthDay: Binding<Int> {
+    private var nonOptionalRule: Binding<RepeatRule> {
         Binding(
-            get: { (rule?.lastDayOfMonth ?? false) ? 0 : (rule?.dayOfMonth ?? 1) },
-            set: { day in
-                rule?.lastDayOfMonth = day == 0
-                rule?.dayOfMonth = day == 0 ? 31 : day
-            }
+            get: { rule ?? RepeatRule.matching(dueDate, frequency: .monthly) },
+            set: { rule = $0 }
         )
     }
 
@@ -167,5 +159,74 @@ struct WeekdayPicker: View {
         } else {
             selection.insert(day)
         }
+    }
+}
+
+/// Campos de una repetición mensual: un día del mes (o el último) o un día de la semana del mes
+/// ("el primer lunes", "el último domingo"…). Usa el estilo de selector del contenedor.
+struct MonthlyRepeatFields: View {
+    @Binding var rule: RepeatRule
+    /// De aquí sale el día de la semana (y cuál del mes) al cambiar a "Día de la semana".
+    let dueDate: Date
+
+    var body: some View {
+        Picker("Repetir el", selection: byWeekday) {
+            Text("Día del mes").tag(false)
+            Text("Día de la semana").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+
+        if rule.weekdayOrdinal == 0 {
+            Picker("Día del mes", selection: monthDay) {
+                ForEach(1...31, id: \.self) { day in
+                    Text("Día \(day)").tag(day)
+                }
+                Text("Último día").tag(0)
+            }
+        } else {
+            Picker("Día de la semana", selection: $rule.ordinalWeekday) {
+                ForEach(SpanishNames.orderedWeekdays(calendar: .current), id: \.self) { day in
+                    Text(SpanishNames.weekdays[day].capitalized).tag(day)
+                }
+            }
+            Picker("Cuál del mes", selection: $rule.weekdayOrdinal) {
+                ForEach(RepeatRule.weekdayOrdinals, id: \.self) { ordinal in
+                    Text(RepeatRule.ordinalOption(ordinal)).tag(ordinal)
+                }
+            }
+            if let note = RepeatRule.ordinalNote(rule.weekdayOrdinal, weekday: rule.ordinalWeekday) {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var byWeekday: Binding<Bool> {
+        Binding(
+            get: { rule.weekdayOrdinal != 0 },
+            set: { isOn in
+                guard isOn != (rule.weekdayOrdinal != 0) else { return }
+                if isOn {
+                    let position = RepeatRule.weekdayPosition(of: dueDate)
+                    rule.weekdayOrdinal = position.ordinal
+                    rule.ordinalWeekday = position.weekday
+                } else {
+                    rule.weekdayOrdinal = 0
+                }
+            }
+        )
+    }
+
+    /// Día del mes, con 0 = último día.
+    private var monthDay: Binding<Int> {
+        Binding(
+            get: { rule.lastDayOfMonth ? 0 : rule.dayOfMonth },
+            set: { day in
+                rule.lastDayOfMonth = day == 0
+                rule.dayOfMonth = day == 0 ? 31 : day
+            }
+        )
     }
 }
