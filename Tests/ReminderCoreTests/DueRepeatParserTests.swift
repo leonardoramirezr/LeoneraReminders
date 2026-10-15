@@ -53,6 +53,11 @@ struct DueRepeatParserTests {
         ("Daily 11:00 PM", RepeatRule(frequency: .daily, hour: 23)),
         ("1st of every month at 20:00", RepeatRule(frequency: .monthly, hour: 20, dayOfMonth: 1)),
         ("Every 2 months on the 15th", RepeatRule(frequency: .monthly, interval: 2, hour: 21, dayOfMonth: 15)),
+        ("Primer lunes de cada mes a las 9:00", RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: 1, ordinalWeekday: 2)),
+        ("3er viernes de cada mes 18:00", RepeatRule(frequency: .monthly, hour: 18, weekdayOrdinal: 3, ordinalWeekday: 6)),
+        ("Último domingo de cada 3 meses a las 10:00", RepeatRule(frequency: .monthly, interval: 3, hour: 10, weekdayOrdinal: -1, ordinalWeekday: 1)),
+        ("Penúltimo jueves de cada mes", RepeatRule(frequency: .monthly, hour: 21, weekdayOrdinal: -2, ordinalWeekday: 5)),
+        ("Last Friday of every month at 17:00", RepeatRule(frequency: .monthly, hour: 17, weekdayOrdinal: -1, ordinalWeekday: 6)),
         ("Every Nov 8, 20:20", RepeatRule(frequency: .yearly, hour: 20, minute: 20, dayOfMonth: 8, month: 11)),
     ])
     func parsesOtherVariants(text: String, expected: RepeatRule) {
@@ -82,6 +87,11 @@ struct DueRepeatParserTests {
         RepeatRule(frequency: .monthly, hour: 20, dayOfMonth: 7),
         RepeatRule(frequency: .monthly, interval: 2, hour: 9, dayOfMonth: 1),
         RepeatRule(frequency: .monthly, hour: 18, dayOfMonth: 31, lastDayOfMonth: true),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: -1, ordinalWeekday: 1),
+        RepeatRule(frequency: .monthly, interval: 2, hour: 9, weekdayOrdinal: 2, ordinalWeekday: 3),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: 4, ordinalWeekday: 6),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: -2, ordinalWeekday: 4),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: -3, ordinalWeekday: 7),
         RepeatRule(frequency: .yearly, hour: 20, minute: 20, dayOfMonth: 8, month: 11),
         RepeatRule(frequency: .yearly, interval: 2, hour: 13, dayOfMonth: 1, month: 2),
         RepeatRule(frequency: .hourly, hour: 21, minute: 0),
@@ -97,6 +107,10 @@ struct DueRepeatParserTests {
             == "Todos los lunes, miércoles y viernes 8:00")
         #expect(RepeatRule(frequency: .monthly, interval: 2, hour: 9, dayOfMonth: 1).summary(calendar: mexico)
             == "Día 1 de cada 2 meses a las 9:00")
+        #expect(RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: -1, ordinalWeekday: 1).summary(calendar: mexico)
+            == "Último domingo de cada mes a las 9:00")
+        #expect(RepeatRule(frequency: .monthly, interval: 2, hour: 9, weekdayOrdinal: -3, ordinalWeekday: 4).summary(calendar: mexico)
+            == "Antepenúltimo miércoles de cada 2 meses a las 9:00")
         #expect(RepeatRule(frequency: .yearly, hour: 20, minute: 20, dayOfMonth: 8, month: 11).summary(calendar: mexico)
             == "Cada año el 8 de noviembre, 20:20")
     }

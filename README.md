@@ -32,7 +32,8 @@ App de recordatorios para iOS hecha con SwiftUI que usa **AlarmKit** para que ca
   y los próximos 14 días ya calculados en las instrucciones; la app lo lee de forma tolerante y lo convierte en
   recordatorios con la misma regla de repetición que usa el resto de la app.
 - **Repeticiones** (basadas en las del CSV de Due): cada N horas, diario/cada N días, semanal en uno o varios días
-  (incluye entre semana y fines de semana), mensual en un día o el último día del mes (cada N meses) y anual (cada N años).
+  (incluye entre semana y fines de semana), mensual en un día, el último día del mes o un día de la semana del mes (primer, segundo, tercer, cuarto,
+  último, penúltimo o antepenúltimo lunes, martes…; cada N meses) y anual (cada N años).
   La regla guarda su propia hora y día, así que mover o posponer una ocurrencia no cambia la regla.
 - **Posponer mueve la fecha límite**: «Recordar en 10 min» deja la fecha límite en ahora + 10 min (ya no hay una
   hora de "pospuesto hasta" aparte).

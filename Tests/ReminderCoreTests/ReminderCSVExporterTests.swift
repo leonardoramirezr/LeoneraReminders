@@ -72,6 +72,11 @@ struct ReminderCSVExporterTests {
         RepeatRule(frequency: .monthly, hour: 20, dayOfMonth: 7),
         RepeatRule(frequency: .monthly, interval: 2, hour: 9, dayOfMonth: 1),
         RepeatRule(frequency: .monthly, hour: 18, dayOfMonth: 31, lastDayOfMonth: true),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: -1, ordinalWeekday: 1),
+        RepeatRule(frequency: .monthly, interval: 2, hour: 9, weekdayOrdinal: 2, ordinalWeekday: 3),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: 4, ordinalWeekday: 6),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: -2, ordinalWeekday: 4),
+        RepeatRule(frequency: .monthly, hour: 9, weekdayOrdinal: -3, ordinalWeekday: 7),
         RepeatRule(frequency: .yearly, hour: 20, minute: 20, dayOfMonth: 8, month: 11),
         RepeatRule(frequency: .yearly, interval: 2, hour: 13, dayOfMonth: 1, month: 2),
     ])

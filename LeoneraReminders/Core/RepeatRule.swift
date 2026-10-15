@@ -5,7 +5,7 @@ import Foundation
 /// Cubre las formas que aparecen en la exportación de Due:
 /// "Diariamente 23:00", "Todos los sábados 8:00", "7mo de cada mes a las 20:00",
 /// "1er de cada 2 meses a las 9:00" y "Todos los 8 nov, 20:20"; además de cada N horas,
-/// varios días de la semana y el último día del mes.
+/// varios días de la semana, el último día del mes y un día de la semana del mes ("último domingo de cada mes").
 ///
 /// La regla guarda su propia hora/día; la fecha límite del recordatorio es sólo la ocurrencia
 /// actual (que puede haberse movido o pospuesto) y no altera la regla.
@@ -28,6 +28,11 @@ struct RepeatRule: Codable, Hashable, Sendable {
     var dayOfMonth: Int
     /// `.monthly`: el último día de cada mes en lugar de `dayOfMonth`.
     var lastDayOfMonth: Bool
+    /// `.monthly`: cuál `ordinalWeekday` del mes en lugar de `dayOfMonth` (p. ej. "el 2.º martes").
+    /// 1…4 = primero a cuarto; -1 = último, -2 = penúltimo, -3 = antepenúltimo; 0 = no se usa.
+    var weekdayOrdinal: Int
+    /// Día de la semana para `weekdayOrdinal`, con la numeración de `Calendar` (1 = domingo … 7 = sábado).
+    var ordinalWeekday: Int
     /// Mes (1…12) para `.yearly`.
     var month: Int
 
@@ -39,6 +44,8 @@ struct RepeatRule: Codable, Hashable, Sendable {
         weekdays: Set<Int> = [],
         dayOfMonth: Int = 1,
         lastDayOfMonth: Bool = false,
+        weekdayOrdinal: Int = 0,
+        ordinalWeekday: Int = 1,
         month: Int = 1
     ) {
         self.frequency = frequency
@@ -48,6 +55,8 @@ struct RepeatRule: Codable, Hashable, Sendable {
         self.weekdays = weekdays.filter { (1...7).contains($0) }
         self.dayOfMonth = min(max(dayOfMonth, 1), 31)
         self.lastDayOfMonth = lastDayOfMonth
+        self.weekdayOrdinal = Self.weekdayOrdinals.contains(weekdayOrdinal) ? weekdayOrdinal : 0
+        self.ordinalWeekday = (1...7).contains(ordinalWeekday) ? ordinalWeekday : 1
         self.month = min(max(month, 1), 12)
     }
 
@@ -63,6 +72,17 @@ struct RepeatRule: Codable, Hashable, Sendable {
             dayOfMonth: parts.day ?? 1,
             month: parts.month ?? 1
         )
+    }
+
+    /// Valores válidos de `weekdayOrdinal` (sin el 0), en el orden en que se muestran.
+    static let weekdayOrdinals = [1, 2, 3, 4, -1, -2, -3]
+
+    /// Qué día de la semana es `date` y en qué posición del mes cae, p. ej. (2, 3) = segundo martes.
+    /// El 5.º de un mes se toma como el último, porque no todos los meses lo tienen.
+    static func weekdayPosition(of date: Date, calendar: Calendar = .current) -> (ordinal: Int, weekday: Int) {
+        let parts = calendar.dateComponents([.day, .weekday], from: date)
+        let ordinal = ((parts.day ?? 1) - 1) / 7 + 1
+        return (ordinal > 4 ? -1 : ordinal, parts.weekday ?? 1)
     }
 
     var time: TimeOfDay {
@@ -129,7 +149,14 @@ extension RepeatRule {
                 let targetParts = calendar.dateComponents([.year, .month], from: target)
                 guard let y = targetParts.year, let m = targetParts.month else { continue }
                 let length = Self.daysIn(year: y, month: m, calendar: calendar)
-                let day = lastDayOfMonth ? length : min(dayOfMonth, length)
+                let day: Int
+                if weekdayOrdinal != 0 {
+                    guard let found = Self.day(of: ordinalWeekday, ordinal: weekdayOrdinal, year: y, month: m, calendar: calendar)
+                    else { continue }
+                    day = found
+                } else {
+                    day = lastDayOfMonth ? length : min(dayOfMonth, length)
+                }
                 guard let candidate = Self.date(year: y, month: m, day: day, hour: hour, minute: minute, calendar: calendar)
                 else { continue }
                 if candidate > date { return candidate }
@@ -184,6 +211,19 @@ extension RepeatRule {
         return range.count
     }
 
+    /// Día del mes del `ordinal`-ésimo `weekday` (negativo = contando desde el final: -1 = el último).
+    static func day(of weekday: Int, ordinal: Int, year: Int, month: Int, calendar: Calendar) -> Int? {
+        guard ordinal != 0,
+              let firstOfMonth = calendar.date(from: DateComponents(year: year, month: month, day: 1))
+        else { return nil }
+        let length = daysIn(year: year, month: month, calendar: calendar)
+        let first = 1 + (weekday - calendar.component(.weekday, from: firstOfMonth) + 7) % 7
+        let count = (length - first) / 7 + 1
+        let index = ordinal > 0 ? ordinal - 1 : count + ordinal
+        guard (0..<count).contains(index) else { return nil }
+        return first + index * 7
+    }
+
     static func date(onDayOf day: Date, hour: Int, minute: Int, calendar: Calendar) -> Date? {
         let parts = calendar.dateComponents([.year, .month, .day], from: day)
         guard let y = parts.year, let m = parts.month, let d = parts.day else { return nil }
@@ -199,7 +239,7 @@ extension RepeatRule {
 
 extension RepeatRule {
     private enum CodingKeys: String, CodingKey {
-        case frequency, interval, hour, minute, weekdays, dayOfMonth, lastDayOfMonth, month
+        case frequency, interval, hour, minute, weekdays, dayOfMonth, lastDayOfMonth, weekdayOrdinal, ordinalWeekday, month
     }
 
     init(from decoder: any Decoder) throws {
@@ -212,6 +252,8 @@ extension RepeatRule {
             weekdays: try c.decodeIfPresent(Set<Int>.self, forKey: .weekdays) ?? [],
             dayOfMonth: try c.decodeIfPresent(Int.self, forKey: .dayOfMonth) ?? 1,
             lastDayOfMonth: try c.decodeIfPresent(Bool.self, forKey: .lastDayOfMonth) ?? false,
+            weekdayOrdinal: try c.decodeIfPresent(Int.self, forKey: .weekdayOrdinal) ?? 0,
+            ordinalWeekday: try c.decodeIfPresent(Int.self, forKey: .ordinalWeekday) ?? 1,
             month: try c.decodeIfPresent(Int.self, forKey: .month) ?? 1
         )
     }
@@ -225,6 +267,8 @@ extension RepeatRule {
         try c.encode(weekdays.sorted(), forKey: .weekdays)
         try c.encode(dayOfMonth, forKey: .dayOfMonth)
         try c.encode(lastDayOfMonth, forKey: .lastDayOfMonth)
+        try c.encode(weekdayOrdinal, forKey: .weekdayOrdinal)
+        try c.encode(ordinalWeekday, forKey: .ordinalWeekday)
         try c.encode(month, forKey: .month)
     }
 }
