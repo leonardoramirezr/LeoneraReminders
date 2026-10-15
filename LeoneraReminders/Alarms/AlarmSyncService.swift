@@ -40,13 +40,16 @@ final class AlarmSyncService {
             isObserving = true
             Task {
                 for await state in manager.authorizationUpdates {
-                    authorizationState = state
+                    if authorizationState != state { authorizationState = state }
                     if state == .authorized { requestSync() }
                 }
             }
             Task {
                 for await alarms in manager.alarmUpdates {
-                    alertingAlarmIDs = Set(alarms.filter { $0.state == .alerting }.map(\.id))
+                    // Llega una actualización por cada alarma que se programa o cancela; asignar el mismo
+                    // valor volvería a dibujar toda la lista a media animación.
+                    let alerting = Set(alarms.filter { $0.state == .alerting }.map(\.id))
+                    if alertingAlarmIDs != alerting { alertingAlarmIDs = alerting }
                 }
             }
         }
@@ -92,7 +95,7 @@ final class AlarmSyncService {
 
     private func performSync() async {
         let settings = SettingsStore.shared.settings
-        authorizationState = manager.authorizationState
+        if authorizationState != manager.authorizationState { authorizationState = manager.authorizationState }
         if settings.ignoresSilentMode {
             NotificationDelivery.shared.removeAll()
             await syncAlarmKit(settings: settings)
@@ -108,7 +111,8 @@ final class AlarmSyncService {
     /// Notificaciones locales: iOS permite 64 pendientes, así que se programan las más próximas.
     private func syncNotifications(settings: AppSettings) async {
         let delivery = NotificationDelivery.shared
-        notificationsAuthorized = await delivery.requestAuthorization()
+        let authorized = await delivery.requestAuthorization()
+        if notificationsAuthorized != authorized { notificationsAuthorized = authorized }
         guard notificationsAuthorized else { return }
 
         let store = ReminderStore.shared
@@ -121,14 +125,12 @@ final class AlarmSyncService {
             }
         }
         items.sort { $0.record.fireDate < $1.record.fireDate }
-        limitReached = items.count > NotificationDelivery.maxPending
+        let overLimit = items.count > NotificationDelivery.maxPending
+        if limitReached != overLimit { limitReached = overLimit }
         let scheduled = Array(items.prefix(NotificationDelivery.maxPending))
         await delivery.replaceAll(scheduled, settings: settings)
 
-        let byReminder = Dictionary(grouping: scheduled, by: \.reminder.id)
-        for reminder in store.reminders {
-            store.setScheduledAlarms(byReminder[reminder.id]?.map(\.record) ?? [], for: reminder.id)
-        }
+        store.setScheduledAlarms(Dictionary(grouping: scheduled, by: \.reminder.id).mapValues { $0.map(\.record) })
         await delivery.removeDelivered(keeping: Set(store.reminders.filter { !$0.isCompleted }.map(\.id)))
     }
 
@@ -180,7 +182,7 @@ final class AlarmSyncService {
         // las repeticiones, en orden de fecha.
         missing.sort { ($0.isMain ? 0 : 1, $0.date) < ($1.isMain ? 0 : 1, $1.date) }
         var reachedLimit = false
-        lastError = nil
+        var syncError: String?
         for item in missing where !reachedLimit {
             let alarmID = UUID()
             do {
@@ -191,15 +193,13 @@ final class AlarmSyncService {
             } catch AlarmManager.AlarmError.maximumLimitReached {
                 reachedLimit = true
             } catch {
-                lastError = error.localizedDescription
+                syncError = error.localizedDescription
                 logger.error("No se pudo programar «\(item.reminder.title, privacy: .private)»: \(error.localizedDescription, privacy: .public)")
             }
         }
-        for reminder in store.reminders {
-            let records = (kept[reminder.id] ?? []).sorted { $0.fireDate < $1.fireDate }
-            store.setScheduledAlarms(records, for: reminder.id)
-        }
-        limitReached = reachedLimit
+        store.setScheduledAlarms(kept.mapValues { records in records.sorted { $0.fireDate < $1.fireDate } })
+        if lastError != syncError { lastError = syncError }
+        if limitReached != reachedLimit { limitReached = reachedLimit }
     }
 
     /// Sube cuando cambia el texto o el ícono de los botones, para reprogramar las alarmas ya creadas.

@@ -179,24 +179,30 @@ struct ReminderListView: View {
     }
 
     private func row(_ reminder: Reminder, now: Date) -> some View {
-        ReminderRow(
-            reminder: reminder,
-            now: now,
-            isRinging: reminder.scheduledAlarms.contains { alarms.alertingAlarmIDs.contains($0.id) },
-            onToggle: {
-                // Completar siempre pide deslizar; reabrir un completado es inofensivo.
-                if reminder.isCompleted {
-                    store.markIncomplete(id: reminder.id)
-                } else {
-                    acting = ReminderSheetID(id: reminder.id)
+        // Un botón (y no `onTapGesture`) para que el toque no compita con el gesto de deslizar.
+        Button { editing = .edit(reminder.id) } label: {
+            ReminderRow(
+                reminder: reminder,
+                now: now,
+                isRinging: reminder.scheduledAlarms.contains { alarms.alertingAlarmIDs.contains($0.id) },
+                onToggle: {
+                    // Completar siempre pide deslizar; reabrir un completado es inofensivo.
+                    if reminder.isCompleted {
+                        store.markIncomplete(id: reminder.id)
+                    } else {
+                        acting = ReminderSheetID(id: reminder.id)
+                    }
                 }
-            }
-        )
-        .contentShape(Rectangle())
-        .onTapGesture { editing = .edit(reminder.id) }
+            )
+            .contentShape(Rectangle())
+        }
         .swipeActions(edge: completeEdge) {
             if !reminder.isCompleted {
-                Button { complete(reminder) } label: {
+                // Si al completarlo sale de su sección, la fila se desliza fuera como al eliminar
+                // en lugar de regresar a su lugar y luego desaparecer de golpe.
+                Button(role: leavesSectionWhenCompleted(reminder) ? .destructive : nil) {
+                    complete(reminder)
+                } label: {
                     Label("Completar", systemImage: "checkmark")
                 }
                 .tint(.green)
@@ -374,6 +380,13 @@ struct ReminderListView: View {
     private func complete(_ reminder: Reminder) {
         withAnimation { store.complete(id: reminder.id) }
         completedTrigger += 1
+    }
+
+    /// Los que no se repiten (o ya no tienen otra fecha) pasan a «Completados».
+    private func leavesSectionWhenCompleted(_ reminder: Reminder) -> Bool {
+        var completed = reminder
+        completed.complete()
+        return completed.isCompleted
     }
 
     /// Todos los recordatorios (también los completados), en el formato que «Importar CSV…» vuelve a leer.

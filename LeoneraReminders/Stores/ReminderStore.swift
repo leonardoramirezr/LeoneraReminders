@@ -176,12 +176,20 @@ final class ReminderStore {
         if changed { didChange() }
     }
 
-    /// Registra las alarmas programadas. No dispara otra sincronización.
-    func setScheduledAlarms(_ alarms: [ScheduledAlarm], for id: UUID) {
-        guard let index = reminders.firstIndex(where: { $0.id == id }),
-              reminders[index].scheduledAlarms != alarms
-        else { return }
-        reminders[index].scheduledAlarms = alarms
+    /// Registra las alarmas programadas de todos los recordatorios (los que no aparecen quedan sin alarmas).
+    /// Es un solo cambio y un solo guardado, para no redibujar la lista ni reescribir el archivo por cada
+    /// recordatorio mientras se anima un cambio. No dispara otra sincronización.
+    func setScheduledAlarms(_ alarmsByReminder: [UUID: [ScheduledAlarm]]) {
+        var updated = reminders
+        var changed = false
+        for index in updated.indices {
+            let alarms = alarmsByReminder[updated[index].id] ?? []
+            guard updated[index].scheduledAlarms != alarms else { continue }
+            updated[index].scheduledAlarms = alarms
+            changed = true
+        }
+        guard changed else { return }
+        reminders = updated
         save()
     }
 
@@ -218,7 +226,7 @@ final class ReminderStore {
             encoder.outputFormatting = [.sortedKeys]
             let data = try encoder.encode(reminders)
             try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-            lastError = nil
+            if lastError != nil { lastError = nil }
         } catch {
             lastError = "No se pudieron guardar los recordatorios."
             logger.error("Error al guardar recordatorios: \(error.localizedDescription, privacy: .public)")
